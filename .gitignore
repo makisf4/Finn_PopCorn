@@ -2,3 +2,4 @@
 *.zip
 .vercel
 node_modules
+data/leaderboard.json

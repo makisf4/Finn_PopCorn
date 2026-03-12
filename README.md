@@ -6,17 +6,23 @@ Finn (a cute black dog with a red collar) runs left and right to catch popcorn l
 
 ## Run locally
 
-Because the project uses ES modules, run it via a local server (not `file://`).
+Use the built-in Node server so all devices share one leaderboard.
 
 ```bash
 cd /Users/makpap/Desktop/Projects/Finn_PopCorn
-python3 -m http.server 8080
+node server.mjs
 ```
 
 Open:
 
-- `http://localhost:8080` in **Brave**
-- `http://localhost:8080` in **Safari**
+- `http://localhost:8080` on desktop
+- `http://<your-local-ip>:8080` on mobile devices in the same network
+
+Fallback for static-only preview (without shared leaderboard API):
+
+```bash
+python3 -m http.server 8080
+```
 
 ## Controls
 
@@ -96,3 +102,4 @@ Compatibility notes:
 - `src/input.js` - keyboard + touch/mouse controls
 - `src/audio.js` - synthesized SFX/music + mute/unmute
 - `src/utils.js` - math/collision helpers
+- `server.mjs` - static server + shared leaderboard API (`GET/POST /api/leaderboard`)

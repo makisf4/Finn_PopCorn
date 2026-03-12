@@ -7,31 +7,30 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
     />
     <title>Finn The Dyno PopCorn King</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=20260312-3" />
   </head>
   <body>
     <div id="app">
-      <header id="hud" aria-live="polite">
-        <div class="hud-pill" id="score-pill">
-          <span class="label">Score</span>
-          <span id="score-value" class="value">0</span>
-        </div>
-        <div class="hud-pill" id="miss-pill">
-          <span class="label">Misses</span>
-          <span id="miss-value" class="value">0 / 3</span>
-        </div>
-        <button id="mute-btn" class="icon-btn" aria-label="Toggle sound" type="button">
-          <span id="mute-icon">🔊</span>
-        </button>
-        <div id="volume-wrap" class="hud-volume">
-          <label for="volume-slider">Volume</label>
-          <input id="volume-slider" type="range" min="0" max="100" step="1" value="72" />
-          <span id="volume-value">72%</span>
-        </div>
-      </header>
-
       <main id="game-shell" aria-label="Finn and the Popcorn Machine game area">
         <canvas id="game-canvas" aria-label="Game canvas"></canvas>
+        <header id="hud" aria-live="polite">
+          <div class="hud-pill" id="score-pill">
+            <span class="label">Score</span>
+            <span id="score-value" class="value">0</span>
+          </div>
+          <div class="hud-pill" id="miss-pill">
+            <span class="label">Misses</span>
+            <span id="miss-value" class="value">0 / 3</span>
+          </div>
+          <button id="mute-btn" class="icon-btn" aria-label="Toggle sound" type="button">
+            <span id="mute-icon">🔊</span>
+          </button>
+          <div id="volume-wrap" class="hud-volume">
+            <label for="volume-slider">Volume</label>
+            <input id="volume-slider" type="range" min="0" max="100" step="1" value="72" />
+            <span id="volume-value">72%</span>
+          </div>
+        </header>
 
         <section id="start-screen" class="overlay visible" aria-label="Start screen">
           <h1>Finn The Dyno PopCorn King</h1>
@@ -83,6 +82,6 @@
       </section>
     </div>
 
-    <script type="module" src="./src/main.js?v=20260312-5"></script>
+    <script type="module" src="./src/main.js?v=20260312-13"></script>
   </body>
 </html>

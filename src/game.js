@@ -1,6 +1,6 @@
-import { AudioManager } from "./audio.js";
+import { AudioManager } from "./audio.js?v=20260312-4";
 import { InputManager } from "./input.js";
-import { Renderer } from "./renderer.js?v=20260312-5";
+import { Renderer } from "./renderer.js?v=20260312-11";
 import { clamp, circleRectCollision, formatMisses, lerp, rand, randInt, smoothstep } from "./utils.js";
 
 export class Game {
@@ -55,9 +55,12 @@ export class Game {
     this.activePlayerName = "";
 
     this.popcorns = [];
+    this.bonusBirds = [];
+    this.bonusDrops = [];
     this.particles = [];
     this.launchEvents = [];
     this.nextBatchAt = 0;
+    this.nextBonusBirdAt = rand(12, 20);
 
     this.groundY = 0;
     this.shake = 0;
@@ -75,6 +78,7 @@ export class Game {
     };
 
     this.leaderboardStorageKey = "finn_popcorn_leaderboard_v1";
+    this.leaderboardApiUrl = "/api/leaderboard";
     this.maxLeaderboardEntries = 10;
     this.lastPlayerStorageKey = "finn_popcorn_last_player_v1";
     this.blockedNameFragments = [
@@ -128,6 +132,9 @@ export class Game {
       { id: "big", scale: 1.26, points: 7, weight: 0.2 },
       { id: "giant", scale: 1.56, points: 10, weight: 0.06 },
     ];
+    this.bonusLollipopPoints = 20;
+    this.bonusSpawnMin = 13;
+    this.bonusSpawnMax = 23;
 
     this.dog = {
       x: 0,
@@ -148,6 +155,12 @@ export class Game {
     this.#syncVolumeUi();
     this.#hydrateLastPlayerName();
     this.#renderLeaderboards();
+    void this.#syncLeaderboardFromServer();
+    this.leaderboardPollTimer = window.setInterval(() => {
+      if (this.state !== "playing") {
+        void this.#syncLeaderboardFromServer();
+      }
+    }, 8000);
     this.#loop(0);
   }
 
@@ -253,9 +266,12 @@ export class Game {
     this.gameOverElapsed = 0;
     this.gameOverFxTimer = 0;
     this.popcorns.length = 0;
+    this.bonusBirds.length = 0;
+    this.bonusDrops.length = 0;
     this.particles.length = 0;
     this.launchEvents.length = 0;
     this.nextBatchAt = 0.8;
+    this.nextBonusBirdAt = rand(this.bonusSpawnMin, this.bonusSpawnMax);
     this.shake = 0;
     this.milestoneBannerTimer = 0;
     this.lastMilestoneScore = 0;
@@ -272,6 +288,8 @@ export class Game {
     this.gameOverFxTimer = 0.85;
     this.launchEvents.length = 0;
     this.popcorns.length = 0;
+    this.bonusBirds.length = 0;
+    this.bonusDrops.length = 0;
     this.milestoneBannerTimer = 0;
     this.#hideMilestoneBanner();
     this.#hidePauseOverlay();
@@ -304,6 +322,7 @@ export class Game {
     this.gameOverElapsed = 0;
     this.gameOverFxTimer = 0;
     this.#renderLeaderboards();
+    void this.#syncLeaderboardFromServer();
 
     if (this.playerNameInput) {
       this.playerNameInput.focus();
@@ -390,7 +409,10 @@ export class Game {
         this.#spawnPopcorn();
       }
 
+      this.#spawnBonusBirdIfReady();
       this.#updatePopcorns(dt);
+      this.#updateBonusBirds(dt);
+      this.#updateBonusDrops(dt);
     } else if (this.state === "gameover") {
       this.gameOverElapsed += dt;
     }
@@ -483,6 +505,146 @@ export class Game {
         this.popcorns.splice(i, 1);
       }
     }
+  }
+
+  #spawnBonusBirdIfReady() {
+    if (this.gameClock < this.nextBonusBirdAt) return;
+    if (this.bonusBirds.length > 0 || this.bonusDrops.length > 0) return;
+
+    this.#spawnBonusBird();
+    this.nextBonusBirdAt = this.gameClock + rand(this.bonusSpawnMin, this.bonusSpawnMax);
+  }
+
+  #spawnBonusBird() {
+    const fromLeft = Math.random() < 0.5;
+    const w = clamp(this.width * 0.11, 54, 96);
+    const h = w * 0.52;
+    const y = rand(this.height * 0.18, this.height * 0.33);
+    const x = fromLeft ? -w * 0.8 : this.width + w * 0.8;
+    const speed = this.width * rand(0.115, 0.165);
+    const vx = fromLeft ? speed : -speed;
+    const dropX = rand(this.width * 0.16, this.width * 0.84);
+
+    this.bonusBirds.push({
+      x,
+      y,
+      vx,
+      w,
+      h,
+      dropX,
+      dropped: false,
+      wingPhase: rand(0, Math.PI * 2),
+    });
+  }
+
+  #updateBonusBirds(dt) {
+    for (let i = this.bonusBirds.length - 1; i >= 0; i -= 1) {
+      const bird = this.bonusBirds[i];
+      bird.x += bird.vx * dt;
+      bird.wingPhase += dt * 16;
+
+      if (!bird.dropped) {
+        const reachedDropPoint =
+          (bird.vx > 0 && bird.x >= bird.dropX) || (bird.vx < 0 && bird.x <= bird.dropX);
+        if (reachedDropPoint) {
+          bird.dropped = true;
+          this.#spawnBonusDrop(bird);
+        }
+      }
+
+      if (bird.vx > 0 && bird.x - bird.w > this.width + 24) {
+        this.bonusBirds.splice(i, 1);
+        continue;
+      }
+      if (bird.vx < 0 && bird.x + bird.w < -24) {
+        this.bonusBirds.splice(i, 1);
+      }
+    }
+  }
+
+  #spawnBonusDrop(bird) {
+    const r = clamp(this.width * 0.013, 9, 13);
+    this.bonusDrops.push({
+      x: bird.x,
+      y: bird.y + bird.h * 0.46,
+      vx: bird.vx * 0.08,
+      vy: this.height * 0.02,
+      g: this.height * 0.46,
+      r,
+      spin: rand(0, Math.PI * 2),
+      spinSpeed: rand(-4.2, 4.2),
+      points: this.bonusLollipopPoints,
+    });
+  }
+
+  #updateBonusDrops(dt) {
+    const catchRect = this.#dogCatchRect();
+
+    for (let i = this.bonusDrops.length - 1; i >= 0; i -= 1) {
+      const drop = this.bonusDrops[i];
+      drop.vy += drop.g * dt;
+      drop.x += drop.vx * dt;
+      drop.y += drop.vy * dt;
+      drop.spin += drop.spinSpeed * dt;
+
+      if (circleRectCollision(drop, catchRect)) {
+        this.#handleBonusCatch(drop);
+        this.bonusDrops.splice(i, 1);
+        continue;
+      }
+
+      if (drop.y + drop.r >= this.groundY) {
+        this.#spawnParticles(drop.x, this.groundY - 5, {
+          count: 7,
+          speedMin: 22,
+          speedMax: 88,
+          lifeMin: 0.15,
+          lifeMax: 0.34,
+          sizeMin: 1.4,
+          sizeMax: 3.6,
+          colors: ["#fff6e1", "#ff9fc9", "#ff6aa9"],
+        });
+        this.bonusDrops.splice(i, 1);
+      }
+    }
+  }
+
+  #handleBonusCatch(drop) {
+    this.score += drop.points || this.bonusLollipopPoints;
+    this.dog.chewTimer = this.dog.chewDuration;
+    this.audio.catch();
+    this.audio.yeah();
+
+    this.#spawnParticles(drop.x, drop.y, {
+      count: 22,
+      speedMin: 40,
+      speedMax: 190,
+      lifeMin: 0.22,
+      lifeMax: 0.6,
+      sizeMin: 1.6,
+      sizeMax: 5.8,
+      colors: ["#ffffff", "#ffe8f6", "#ff79b8", "#ffca66"],
+    });
+
+    this.particles.push({
+      x: drop.x,
+      y: drop.y,
+      vx: 0,
+      vy: 0,
+      gravity: 0,
+      drag: 0,
+      size: drop.r * 1.75,
+      life: 0.24,
+      maxLife: 0.24,
+      alpha: 0.72,
+      color: "#fff6ff",
+      shape: "ring",
+      rotation: 0,
+      vrot: 0,
+    });
+
+    this.#updateHud(true);
+    this.#checkMilestone();
   }
 
   #applyAssist(popcorn, dt) {
@@ -780,18 +942,18 @@ export class Game {
   }
 
   #currentPopcornTheme() {
-    if (this.score < 50) {
+    if (this.score < 100) {
       return this.popcornThemes[0];
     }
 
-    const stage = Math.floor(this.score / 50);
+    const stage = Math.floor(this.score / 100);
     const cycleIndex = ((stage - 1) % 4) + 1;
     return this.popcornThemes[cycleIndex];
   }
 
   #checkMilestone() {
     if (this.state !== "playing") return;
-    const reachedMilestone = Math.floor(this.score / 50) * 50;
+    const reachedMilestone = Math.floor(this.score / 100) * 100;
     if (reachedMilestone <= 0 || reachedMilestone === this.lastMilestoneScore) return;
 
     this.lastMilestoneScore = reachedMilestone;
@@ -859,6 +1021,8 @@ export class Game {
       machine: this.machine,
       dog: this.dog,
       popcorns: this.popcorns,
+      bonusBirds: this.bonusBirds,
+      bonusDrops: this.bonusDrops,
       particles: this.particles,
       shake: this.shake,
     });
@@ -909,19 +1073,22 @@ export class Game {
       if (!raw) return [];
 
       const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-
-      const entries = parsed
-        .map((entry) => ({
-          name: typeof entry.name === "string" ? entry.name.slice(0, 10) : "",
-          score: Number.isFinite(entry.score) ? Math.max(0, Math.floor(entry.score)) : 0,
-          ts: Number.isFinite(entry.ts) ? entry.ts : Date.now(),
-        }))
-        .filter((entry) => /^[A-Za-z]{1,10}$/.test(entry.name));
-      return this.#normalizeLeaderboardEntries(entries);
+      return this.#sanitizeLeaderboardEntries(parsed);
     } catch {
       return [];
     }
+  }
+
+  #sanitizeLeaderboardEntries(payload) {
+    if (!Array.isArray(payload)) return [];
+
+    return payload
+      .map((entry) => ({
+        name: typeof entry.name === "string" ? entry.name.slice(0, 10) : "",
+        score: Number.isFinite(entry.score) ? Math.max(0, Math.floor(entry.score)) : 0,
+        ts: Number.isFinite(entry.ts) ? entry.ts : Date.now(),
+      }))
+      .filter((entry) => /^[A-Za-z]{1,10}$/.test(entry.name));
   }
 
   #saveLeaderboard() {
@@ -938,16 +1105,60 @@ export class Game {
       return;
     }
 
-    this.leaderboardEntries = this.#normalizeLeaderboardEntries([
-      ...this.leaderboardEntries,
-      {
-        name: this.activePlayerName,
-        score: this.score,
-        ts: Date.now(),
-      },
-    ]);
+    const entry = {
+      name: this.activePlayerName,
+      score: this.score,
+      ts: Date.now(),
+    };
+
+    this.leaderboardEntries = this.#normalizeLeaderboardEntries([...this.leaderboardEntries, entry]);
     this.#saveLeaderboard();
     this.#renderLeaderboards();
+    void this.#submitLeaderboardScore(entry);
+  }
+
+  async #syncLeaderboardFromServer() {
+    try {
+      const response = await fetch(this.leaderboardApiUrl, {
+        method: "GET",
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+
+      const payload = await response.json();
+      const entries = this.#sanitizeLeaderboardEntries(payload);
+      this.leaderboardEntries = this.#normalizeLeaderboardEntries(entries);
+      this.#saveLeaderboard();
+      this.#renderLeaderboards();
+    } catch {
+      // Keep local leaderboard when API is unavailable.
+    }
+  }
+
+  async #submitLeaderboardScore(entry) {
+    try {
+      const response = await fetch(this.leaderboardApiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: entry.name,
+          score: entry.score,
+          ts: entry.ts,
+        }),
+        keepalive: true,
+      });
+      if (!response.ok) return;
+
+      const payload = await response.json();
+      const entries = this.#sanitizeLeaderboardEntries(payload);
+      this.leaderboardEntries = this.#normalizeLeaderboardEntries(entries);
+      this.#saveLeaderboard();
+      this.#renderLeaderboards();
+    } catch {
+      // Keep local leaderboard when API is unavailable.
+    }
   }
 
   #normalizeLeaderboardEntries(entries) {
@@ -1019,12 +1230,14 @@ export class Game {
     if (this.state === "playing") {
       this.state = "paused";
       this.#showPauseOverlay();
+      this.audio.stopMusic();
       return;
     }
 
     if (this.state === "paused") {
       this.state = "playing";
       this.#hidePauseOverlay();
+      this.audio.resumeMusic();
     }
   }
 

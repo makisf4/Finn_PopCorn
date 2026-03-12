@@ -9,10 +9,43 @@ export class AudioManager {
     this.started = false;
     this.muted = false;
     this.musicTimer = null;
+    this.musicStep = 0;
     this.volume = 0.72;
     this.masterGainBase = 0.56;
     this.musicGainBase = 0.31;
     this.musicStopped = false;
+    this.musicPattern = {
+      tempo: 300,
+      tempoMs: 200,
+      lead: [
+        "la",
+        "si",
+        "do",
+        "re",
+        "mi",
+        "mi",
+        "re",
+        "mi",
+        "re",
+        "do",
+        "re",
+        "re",
+        "sol",
+        "la",
+        "si",
+        "do",
+        "re",
+        "la",
+        "si",
+        "do",
+        "si",
+        "la",
+        "si",
+        "do",
+      ],
+      durations: [2, 1, 1, 1, 2, 1, 2, 1, 1, 1, 2, 1, 2, 1, 1, 1, 2, 1, 2, 1, 1, 1, 2, 1],
+      bass: [],
+    };
   }
 
   async unlock() {
@@ -130,43 +163,69 @@ export class AudioManager {
     if (!this.ctx || this.muted || this.ctx.state !== "running") return;
     const now = this.ctx.currentTime;
     this.#toneAt({
-      type: "triangle",
-      freqA: 520,
-      freqB: 690,
-      duration: 0.11,
-      volume: 0.14,
+      type: "square",
+      freqA: 700,
+      freqB: 820,
+      duration: 0.12,
+      volume: 0.24,
       startTime: now,
     });
     this.#toneAt({
+      type: "triangle",
+      freqA: 620,
+      freqB: 910,
+      duration: 0.18,
+      volume: 0.21,
+      startTime: now + 0.03,
+    });
+    this.#toneAt({
       type: "sine",
-      freqA: 690,
-      freqB: 880,
-      duration: 0.15,
-      volume: 0.12,
-      startTime: now + 0.09,
+      freqA: 900,
+      freqB: 1160,
+      duration: 0.2,
+      volume: 0.2,
+      startTime: now + 0.12,
     });
   }
 
   #startMusicLoop() {
     if (this.musicTimer || !this.ctx) return;
-    const leadNotes = [
-      523.25, 659.25, 783.99, 659.25, 587.33, 659.25, 698.46, 783.99, 659.25, 523.25, 587.33,
-      659.25,
-    ];
-    const bassNotes = [
-      261.63, 329.63, 392.0, 329.63, 293.66, 329.63, 349.23, 392.0, 329.63, 261.63, 293.66, 329.63,
-    ];
-    let step = 0;
+    this.musicStep = 0;
+    this.#scheduleMusicStep();
+  }
 
-    this.musicTimer = window.setInterval(() => {
-      if (!this.ctx || this.muted || this.ctx.state !== "running") return;
+  #scheduleMusicStep() {
+    if (!this.ctx) return;
+
+    const lead = this.musicPattern.lead;
+    if (!Array.isArray(lead) || lead.length === 0) return;
+
+    const durations = this.musicPattern.durations;
+    const bass = this.musicPattern.bass;
+
+    const idx = this.musicStep % lead.length;
+    const unit = Number.isFinite(durations[idx]) ? durations[idx] : 1;
+    const tempoMs = Math.max(120, Number(this.musicPattern.tempoMs) || Math.round(60000 / 140));
+    const stepMs = Math.max(120, Math.round(unit * tempoMs));
+    const noteDuration = Math.max(0.11, (stepMs * 0.001) * 0.9);
+
+    if (!this.muted && this.ctx.state === "running") {
       const now = this.ctx.currentTime;
-      const idx = step % leadNotes.length;
-      const accent = step % 4 === 0;
-      this.#musicTone(leadNotes[idx], now, accent ? 0.22 : 0.18, accent ? 0.115 : 0.094, "triangle");
-      this.#musicTone(bassNotes[idx], now, 0.17, 0.052, "sine");
-      step += 1;
-    }, 190);
+      const leadFreq = this.#solfegeToFreq(lead[idx], 5);
+      if (leadFreq > 0) {
+        this.#musicTone(leadFreq, now, noteDuration, 0.13, "triangle");
+      }
+
+      if (Array.isArray(bass) && bass.length > 0) {
+        const bassFreq = this.#solfegeToFreq(bass[idx % bass.length], 3);
+        if (bassFreq > 0) {
+          this.#musicTone(bassFreq, now, Math.max(0.1, noteDuration * 0.9), 0.062, "sine");
+        }
+      }
+    }
+
+    this.musicStep += 1;
+    this.musicTimer = window.setTimeout(() => this.#scheduleMusicStep(), stepMs);
   }
 
   #musicTone(freq, startTime, duration, peak, type) {
@@ -181,6 +240,23 @@ export class AudioManager {
     gain.connect(this.musicGain);
     osc.start(startTime);
     osc.stop(startTime + duration + 0.03);
+  }
+
+  #solfegeToFreq(noteName, octave) {
+    const map = {
+      do: 0,
+      re: 2,
+      mi: 4,
+      fa: 5,
+      sol: 7,
+      la: 9,
+      si: 11,
+    };
+    const semitone = map[String(noteName || "").toLowerCase()];
+    if (!Number.isFinite(semitone)) return 0;
+
+    const midi = (octave + 1) * 12 + semitone;
+    return 440 * 2 ** ((midi - 69) / 12);
   }
 
   #tone({ type, freqA, freqB, duration, volume }) {

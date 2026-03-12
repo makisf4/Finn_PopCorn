@@ -32,10 +32,19 @@ export class Renderer {
     }
 
     this.#drawBackground(scene);
+
+    for (const bird of scene.bonusBirds || []) {
+      this.#drawBonusBird(bird);
+    }
+
     this.#drawMachine(scene);
 
     for (const popcorn of scene.popcorns) {
       this.#drawPopcorn(popcorn);
+    }
+
+    for (const drop of scene.bonusDrops || []) {
+      this.#drawBonusDrop(drop);
     }
 
     for (const particle of scene.particles) {
@@ -139,77 +148,158 @@ export class Renderer {
 
     ctx.save();
 
-    const shadow = clamp(machine.firePulse * 0.9, 0, 1);
-    if (shadow > 0.01) {
-      ctx.globalAlpha = shadow * 0.6;
-      ctx.fillStyle = "#ffe27a";
+    const gold = ctx.createLinearGradient(0, y - h * 0.22, 0, y + h * 0.9);
+    gold.addColorStop(0, "#f9d982");
+    gold.addColorStop(0.5, "#d8a33e");
+    gold.addColorStop(1, "#bb7f2c");
+
+    const stripeBody = ctx.createLinearGradient(0, y + h * 0.55, 0, y + h);
+    stripeBody.addColorStop(0, "#ff7291");
+    stripeBody.addColorStop(1, "#df375f");
+
+    const cartLeft = x + w * 0.03;
+    const cartTop = y + h * 0.54;
+    const cartW = w * 0.93;
+    const cartH = h * 0.45;
+    this.#roundedRect(cartLeft, cartTop, cartW, cartH, 12);
+    ctx.fillStyle = stripeBody;
+    ctx.fill();
+    ctx.strokeStyle = "#8f2d45";
+    ctx.lineWidth = 2.4;
+    ctx.stroke();
+
+    const stripeCount = 7;
+    for (let i = 0; i < stripeCount; i += 1) {
+      const stripeW = cartW / stripeCount;
+      const sx = cartLeft + i * stripeW;
+      ctx.fillStyle = i % 2 === 0 ? "rgba(255, 244, 226, 0.88)" : "rgba(255, 87, 128, 0.68)";
+      ctx.fillRect(sx, cartTop + 2, stripeW * 0.48, cartH - 4);
+    }
+
+    const glassX = x + w * 0.12;
+    const glassY = y + h * 0.27;
+    const glassW = w * 0.74;
+    const glassH = h * 0.34;
+    this.#roundedRect(glassX, glassY, glassW, glassH, 9);
+    const glass = ctx.createLinearGradient(glassX, glassY, glassX + glassW, glassY + glassH);
+    glass.addColorStop(0, "rgba(255, 255, 255, 0.72)");
+    glass.addColorStop(0.6, "rgba(255, 246, 231, 0.42)");
+    glass.addColorStop(1, "rgba(255, 255, 255, 0.24)");
+    ctx.fillStyle = glass;
+    ctx.fill();
+    ctx.strokeStyle = "rgba(255, 246, 231, 0.92)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    ctx.fillStyle = "#ffe8b2";
+    const popBaseY = glassY + glassH * 0.84;
+    ctx.beginPath();
+    ctx.moveTo(glassX + 5, popBaseY);
+    ctx.quadraticCurveTo(glassX + glassW * 0.4, popBaseY - glassH * 0.28, glassX + glassW * 0.74, popBaseY);
+    ctx.lineTo(glassX + glassW - 5, glassY + glassH - 4);
+    ctx.lineTo(glassX + 4, glassY + glassH - 4);
+    ctx.closePath();
+    ctx.fill();
+
+    const puffs = 24;
+    for (let i = 0; i < puffs; i += 1) {
+      const px = glassX + 12 + (i / (puffs - 1)) * (glassW - 24) + Math.sin(i * 2.7 + scene.time) * 1.6;
+      const py = popBaseY - (Math.sin(i * 1.13) * 0.5 + 0.5) * glassH * 0.17;
+      const pr = w * (0.016 + (i % 3) * 0.0023);
+      ctx.fillStyle = i % 2 === 0 ? "#fff7de" : "#ffe9ba";
       ctx.beginPath();
-      ctx.arc(machine.nozzleX - 14, machine.nozzleY, h * 0.26, 0, Math.PI * 2);
+      ctx.arc(px, py, pr, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(226, 176, 94, 0.45)";
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+
+    const awningY = y + h * 0.2;
+    const awningH = h * 0.12;
+    this.#roundedRect(x + w * 0.06, awningY, w * 0.86, awningH, 10);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.strokeStyle = "#ab3b54";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    const awningStripes = 8;
+    for (let i = 0; i < awningStripes; i += 1) {
+      const sw = (w * 0.86) / awningStripes;
+      const sx = x + w * 0.06 + i * sw;
+      if (i % 2 === 0) {
+        ctx.fillStyle = "#ff4f79";
+        ctx.fillRect(sx + sw * 0.1, awningY + 1, sw * 0.8, awningH - 2);
+      }
+    }
+
+    const marqueeX = x + w * 0.08;
+    const marqueeY = y - h * 0.1;
+    const marqueeW = w * 0.84;
+    const marqueeH = h * 0.2;
+    this.#roundedRect(marqueeX, marqueeY, marqueeW, marqueeH, 13);
+    ctx.fillStyle = "#fff7e8";
+    ctx.fill();
+    ctx.strokeStyle = gold;
+    ctx.lineWidth = 5;
+    ctx.stroke();
+
+    ctx.fillStyle = "#d5284c";
+    ctx.font = `${Math.max(11, w * 0.17)}px Georgia`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("POPCORN", marqueeX + marqueeW * 0.5, marqueeY + marqueeH * 0.57);
+
+    const poleW = w * 0.055;
+    ctx.fillStyle = gold;
+    ctx.fillRect(glassX - poleW * 0.6, awningY + awningH * 0.55, poleW, cartTop - (awningY + awningH * 0.55));
+    ctx.fillRect(glassX + glassW - poleW * 0.4, awningY + awningH * 0.55, poleW, cartTop - (awningY + awningH * 0.55));
+
+    const wheelR = w * 0.14;
+    const wheelX = x + w * 0.13;
+    const wheelY = cartTop + cartH - wheelR * 0.22;
+    ctx.fillStyle = "#d94863";
+    ctx.beginPath();
+    ctx.arc(wheelX, wheelY, wheelR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#7f2338";
+    ctx.lineWidth = 2.2;
+    ctx.stroke();
+    ctx.strokeStyle = "#f6d782";
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 6; i += 1) {
+      const a = (i / 6) * Math.PI * 2 + scene.time * 0.25;
+      ctx.beginPath();
+      ctx.moveTo(wheelX, wheelY);
+      ctx.lineTo(wheelX + Math.cos(a) * wheelR * 0.78, wheelY + Math.sin(a) * wheelR * 0.78);
+      ctx.stroke();
+    }
+
+    const piston = Math.sin(scene.time * 14) * 1.8 + machine.firePulse * 5.6;
+    const popperW = w * 0.22;
+    const popperH = h * 0.1;
+    const popperX = x - popperW * 0.48;
+    const popperY = y + h * 0.46 + piston;
+    this.#roundedRect(popperX, popperY, popperW, popperH, 7);
+    const popperGrad = ctx.createLinearGradient(popperX, popperY, popperX + popperW, popperY + popperH);
+    popperGrad.addColorStop(0, "#f8f7fb");
+    popperGrad.addColorStop(1, "#9ca8bf");
+    ctx.fillStyle = popperGrad;
+    ctx.fill();
+    ctx.strokeStyle = "#687590";
+    ctx.lineWidth = 1.8;
+    ctx.stroke();
+
+    const flame = clamp(machine.firePulse * 0.9, 0, 1);
+    if (flame > 0.01) {
+      ctx.globalAlpha = flame * 0.55;
+      ctx.fillStyle = "#ffde7a";
+      ctx.beginPath();
+      ctx.ellipse(machine.nozzleX - 6, machine.nozzleY + 1, h * 0.16, h * 0.12, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.globalAlpha = 1;
     }
-
-    this.#roundedRect(x, y, w, h, 16);
-    const body = ctx.createLinearGradient(x, y, x, y + h);
-    body.addColorStop(0, "#ff8a5f");
-    body.addColorStop(1, "#f25f45");
-    ctx.fillStyle = body;
-    ctx.fill();
-
-    ctx.strokeStyle = "#b43b2e";
-    ctx.lineWidth = 3;
-    ctx.stroke();
-
-    const glassX = x + w * 0.2;
-    const glassY = y + h * 0.12;
-    const glassW = w * 0.56;
-    const glassH = h * 0.5;
-    this.#roundedRect(glassX, glassY, glassW, glassH, 12);
-    const glass = ctx.createLinearGradient(glassX, glassY, glassX + glassW, glassY + glassH);
-    glass.addColorStop(0, "rgba(255, 255, 255, 0.78)");
-    glass.addColorStop(1, "rgba(225, 247, 255, 0.38)");
-    ctx.fillStyle = glass;
-    ctx.fill();
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    const kernelY = glassY + glassH * 0.72;
-    ctx.fillStyle = "#ffd17d";
-    ctx.beginPath();
-    ctx.ellipse(glassX + glassW * 0.5, kernelY, glassW * 0.4, glassH * 0.18, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    const piston = Math.sin(scene.time * 15) * 2 + machine.firePulse * 6;
-    const nozzleW = w * 0.22;
-    const nozzleH = h * 0.12;
-    const nozzleX = x - nozzleW * 0.45;
-    const nozzleY = y + h * 0.45 + piston;
-    this.#roundedRect(nozzleX, nozzleY, nozzleW, nozzleH, 10);
-    const nozGrad = ctx.createLinearGradient(nozzleX, nozzleY, nozzleX + nozzleW, nozzleY);
-    nozGrad.addColorStop(0, "#e1e6f5");
-    nozGrad.addColorStop(1, "#8da2cc");
-    ctx.fillStyle = nozGrad;
-    ctx.fill();
-    ctx.strokeStyle = "#6e7ea8";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-
-    const dialX = x + w * 0.8;
-    const dialY = y + h * 0.78;
-    ctx.fillStyle = "#ffe8b3";
-    ctx.beginPath();
-    ctx.arc(dialX, dialY, w * 0.11, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = "#b06d25";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.strokeStyle = "#c64339";
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(dialX, dialY);
-    ctx.lineTo(dialX + Math.cos(scene.time * 2) * w * 0.08, dialY - w * 0.03);
-    ctx.stroke();
 
     ctx.restore();
   }
@@ -252,6 +342,86 @@ export class Renderer {
     ctx.beginPath();
     ctx.ellipse(0, r * 0.44, r * 0.4, r * 0.18, 0, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.restore();
+  }
+
+  #drawBonusBird(bird) {
+    const { ctx } = this;
+    const dir = bird.vx >= 0 ? 1 : -1;
+    const wingLift = Math.sin(bird.wingPhase || 0) * bird.h * 0.24;
+
+    ctx.save();
+    ctx.translate(bird.x, bird.y);
+    if (dir < 0) {
+      ctx.scale(-1, 1);
+    }
+
+    ctx.fillStyle = "#0a0e16";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, bird.w * 0.27, bird.h * 0.22, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(-bird.w * 0.06, -bird.h * 0.02);
+    ctx.quadraticCurveTo(-bird.w * 0.36, -bird.h * 0.2 - wingLift, -bird.w * 0.24, bird.h * 0.12);
+    ctx.quadraticCurveTo(-bird.w * 0.08, bird.h * 0.08, -bird.w * 0.06, -bird.h * 0.02);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(bird.w * 0.02, -bird.h * 0.05);
+    ctx.quadraticCurveTo(-bird.w * 0.14, -bird.h * 0.28 - wingLift * 0.8, bird.w * 0.02, -bird.h * 0.18);
+    ctx.quadraticCurveTo(bird.w * 0.12, -bird.h * 0.1, bird.w * 0.02, -bird.h * 0.05);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.ellipse(bird.w * 0.24, -bird.h * 0.08, bird.w * 0.13, bird.h * 0.14, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = "#f2b35f";
+    ctx.beginPath();
+    ctx.moveTo(bird.w * 0.33, -bird.h * 0.06);
+    ctx.lineTo(bird.w * 0.44, -bird.h * 0.02);
+    ctx.lineTo(bird.w * 0.33, bird.h * 0.01);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  #drawBonusDrop(drop) {
+    const { ctx } = this;
+    const r = drop.r;
+
+    ctx.save();
+    ctx.translate(drop.x, drop.y);
+    ctx.rotate(drop.spin || 0);
+
+    ctx.strokeStyle = "#f7f3e8";
+    ctx.lineWidth = Math.max(2, r * 0.22);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(0, r * 0.5);
+    ctx.lineTo(0, r * 1.95);
+    ctx.stroke();
+
+    const candy = ctx.createRadialGradient(-r * 0.2, -r * 0.2, r * 0.1, 0, 0, r * 1.05);
+    candy.addColorStop(0, "#ffe8f6");
+    candy.addColorStop(0.52, "#ff83bb");
+    candy.addColorStop(1, "#ff4e98");
+    ctx.fillStyle = candy;
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.lineWidth = Math.max(1.2, r * 0.12);
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.72, -Math.PI * 0.95, Math.PI * 1.05);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.38, -Math.PI * 0.9, Math.PI * 1.1);
+    ctx.stroke();
 
     ctx.restore();
   }

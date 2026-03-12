@@ -38,17 +38,23 @@ body {
   height: 100vh;
   height: 100dvh;
   display: grid;
-  grid-template-rows: auto 1fr auto;
-  gap: 10px;
+  grid-template-rows: 1fr auto;
+  gap: 8px;
   padding: 10px 12px calc(10px + var(--safe-bottom));
 }
 
 #hud {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 6;
   display: grid;
   grid-template-columns: auto auto auto;
   justify-content: start;
   gap: 8px;
   align-items: center;
+  width: min(100%, 560px);
+  pointer-events: auto;
 }
 
 .hud-volume {
@@ -69,7 +75,7 @@ body {
 }
 
 .hud-volume label {
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   font-weight: 700;
   opacity: 0.86;
 }
@@ -81,7 +87,7 @@ body {
 }
 
 #volume-value {
-  font-size: 0.72rem;
+  font-size: 0.82rem;
   font-weight: 700;
   min-width: 40px;
   text-align: right;
@@ -101,7 +107,7 @@ body {
 }
 
 .label {
-  font-size: 0.68rem;
+  font-size: 0.86rem;
   opacity: 0.82;
 }
 
@@ -181,12 +187,12 @@ body {
 }
 
 .overlay.banner {
-  inset: 14px auto auto 14px;
+  inset: 146px auto auto 14px;
   display: block;
   background: none;
   padding: 0;
   pointer-events: none;
-  z-index: 4;
+  z-index: 8;
 }
 
 .overlay.banner.visible {
@@ -381,6 +387,11 @@ body {
     max-width: 1100px;
     margin: 0 auto;
     padding-top: 12px;
+  }
+
+  #hud {
+    top: 14px;
+    left: 14px;
   }
 
   #controls {
