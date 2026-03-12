@@ -12,9 +12,10 @@ const leaderboardFile = path.join(dataDir, "leaderboard.json");
 const host = process.env.HOST || "0.0.0.0";
 const port = Number(process.env.PORT || 8080);
 
-const maxEntries = 10;
-const maxBodyBytes = 16_000;
-const blockedNameFragments = [
+const MAX_ENTRIES = 10;
+const MAX_NAME_LENGTH = 10;
+const MAX_BODY_BYTES = 16_000;
+const BLOCKED_NAME_FRAGMENTS = [
   "fuck",
   "shit",
   "bitch",
@@ -68,10 +69,18 @@ const sendText = (res, statusCode, message) => {
   res.end(message);
 };
 
+const normalizeName = (rawName) => {
+  if (typeof rawName !== "string") return "";
+  const collapsed = rawName.replace(/\s+/g, " ").trim();
+  return collapsed.slice(0, MAX_NAME_LENGTH).trim();
+};
+
+const normalizeNameKey = (name) => normalizeName(name).toLowerCase();
+
 const isAllowedName = (name) => {
-  if (!/^[A-Za-z]{1,10}$/.test(name)) return false;
-  const normalized = name.toLowerCase();
-  return !blockedNameFragments.some((fragment) => normalized.includes(fragment));
+  if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(name)) return false;
+  const compact = name.toLowerCase().replace(/\s+/g, "");
+  return !BLOCKED_NAME_FRAGMENTS.some((fragment) => compact.includes(fragment));
 };
 
 const sanitizeEntries = (payload) => {
@@ -79,7 +88,7 @@ const sanitizeEntries = (payload) => {
 
   return payload
     .map((entry) => ({
-      name: typeof entry.name === "string" ? entry.name.slice(0, 10) : "",
+      name: normalizeName(typeof entry.name === "string" ? entry.name : ""),
       score: Number.isFinite(entry.score) ? Math.max(0, Math.floor(entry.score)) : 0,
       ts: Number.isFinite(entry.ts) ? entry.ts : Date.now(),
     }))
@@ -89,7 +98,7 @@ const sanitizeEntries = (payload) => {
 const normalizeEntries = (entries) => {
   const byPlayer = new Map();
   for (const entry of sanitizeEntries(entries)) {
-    const key = entry.name.toLowerCase();
+    const key = normalizeNameKey(entry.name);
     const existing = byPlayer.get(key);
     if (!existing || entry.score > existing.score || (entry.score === existing.score && entry.ts < existing.ts)) {
       byPlayer.set(key, entry);
@@ -98,7 +107,52 @@ const normalizeEntries = (entries) => {
 
   return [...byPlayer.values()]
     .sort((a, b) => b.score - a.score || a.ts - b.ts)
-    .slice(0, maxEntries);
+    .slice(0, MAX_ENTRIES);
+};
+
+const applyRename = (entries, fromName, toName) => {
+  const fromKey = normalizeNameKey(fromName);
+  const toKey = normalizeNameKey(toName);
+  if (!fromKey || !toKey) return normalizeEntries(entries);
+
+  if (fromKey === toKey) {
+    return normalizeEntries(
+      entries.map((entry) =>
+        normalizeNameKey(entry.name) === toKey ? { ...entry, name: toName } : entry
+      )
+    );
+  }
+
+  const survivors = [];
+  const mergePool = [];
+  for (const entry of entries) {
+    const key = normalizeNameKey(entry.name);
+    if (key === fromKey || key === toKey) {
+      mergePool.push(entry);
+    } else {
+      survivors.push(entry);
+    }
+  }
+
+  if (mergePool.length === 0) {
+    return normalizeEntries(entries);
+  }
+
+  let winner = mergePool[0];
+  for (let i = 1; i < mergePool.length; i += 1) {
+    const candidate = mergePool[i];
+    if (candidate.score > winner.score || (candidate.score === winner.score && candidate.ts < winner.ts)) {
+      winner = candidate;
+    }
+  }
+
+  return normalizeEntries([
+    ...survivors,
+    {
+      ...winner,
+      name: toName,
+    },
+  ]);
 };
 
 const ensureLeaderboardFile = async () => {
@@ -132,7 +186,7 @@ const readRequestJson = (req) =>
     let body = "";
     req.on("data", (chunk) => {
       body += chunk;
-      if (body.length > maxBodyBytes) {
+      if (body.length > MAX_BODY_BYTES) {
         reject(new Error("Payload too large"));
         req.destroy();
       }
@@ -167,25 +221,42 @@ const handleLeaderboard = async (req, res) => {
       return;
     }
 
-    const name = typeof payload.name === "string" ? payload.name.trim().slice(0, 10) : "";
-    const score = Number.isFinite(payload.score) ? Math.max(0, Math.floor(payload.score)) : 0;
-    const ts = Number.isFinite(payload.ts) ? payload.ts : Date.now();
-
-    if (!isAllowedName(name)) {
-      sendText(res, 400, "Invalid player name");
-      return;
-    }
-
-    if (score <= 0) {
-      const entries = await readLeaderboard();
-      sendJson(res, 200, entries);
-      return;
-    }
+    const action = String(payload.action || "record").toLowerCase();
 
     const entries = await queueWrite(async () => {
       const current = await readLeaderboard();
+
+      if (action === "rename") {
+        const fromName = normalizeName(typeof payload.fromName === "string" ? payload.fromName : "");
+        const toName = normalizeName(typeof payload.toName === "string" ? payload.toName : "");
+        if (!isAllowedName(fromName) || !isAllowedName(toName)) {
+          throw new Error("Invalid player name");
+        }
+        return writeLeaderboard(applyRename(current, fromName, toName));
+      }
+
+      if (action !== "record") {
+        throw new Error("Unsupported leaderboard action");
+      }
+
+      const name = normalizeName(typeof payload.name === "string" ? payload.name : "");
+      const score = Number.isFinite(payload.score) ? Math.max(0, Math.floor(payload.score)) : 0;
+      const ts = Number.isFinite(payload.ts) ? payload.ts : Date.now();
+      if (!isAllowedName(name)) {
+        throw new Error("Invalid player name");
+      }
+      if (score <= 0) {
+        return current;
+      }
+
       return writeLeaderboard([...current, { name, score, ts }]);
+    }).catch((error) => {
+      if (error.message === "Invalid player name" || error.message === "Unsupported leaderboard action") {
+        throw error;
+      }
+      throw error;
     });
+
     sendJson(res, 200, entries);
     return;
   }
@@ -202,7 +273,7 @@ const toSafeFilePath = (pathname) => {
   return normalized;
 };
 
-const serveStatic = async (req, res, url) => {
+const serveStatic = async (res, url) => {
   const filePath = toSafeFilePath(url.pathname);
   if (!filePath) {
     sendText(res, 403, "Forbidden");
@@ -217,11 +288,7 @@ const serveStatic = async (req, res, url) => {
     return;
   }
 
-  let finalPath = filePath;
-  if (stat.isDirectory()) {
-    finalPath = path.join(filePath, "index.html");
-  }
-
+  const finalPath = stat.isDirectory() ? path.join(filePath, "index.html") : filePath;
   try {
     await fs.access(finalPath);
   } catch {
@@ -258,11 +325,20 @@ const server = createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
 
   if (url.pathname === "/api/leaderboard") {
-    await handleLeaderboard(req, res);
+    try {
+      await handleLeaderboard(req, res);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Leaderboard API failure";
+      if (message === "Invalid player name" || message === "Unsupported leaderboard action") {
+        sendText(res, 400, message);
+        return;
+      }
+      sendText(res, 500, message);
+    }
     return;
   }
 
-  await serveStatic(req, res, url);
+  await serveStatic(res, url);
 });
 
 server.listen(port, host, () => {

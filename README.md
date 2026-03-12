@@ -24,6 +24,19 @@ Fallback for static-only preview (without shared leaderboard API):
 python3 -m http.server 8080
 ```
 
+## Vercel Shared Leaderboard Setup
+
+For shared leaderboard on the production URL, add a **Vercel KV** store to this project and expose:
+
+- `KV_REST_API_URL`
+- `KV_REST_API_TOKEN`
+
+Then redeploy. The endpoint `api/leaderboard.js` will persist top scores in KV.
+API contract:
+- `GET /api/leaderboard` returns normalized top-10 leaderboard.
+- `POST /api/leaderboard` with `{ action: "record", name, score, ts }` updates score.
+- `POST /api/leaderboard` with `{ action: "rename", fromName, toName }` merges/renames player.
+
 ## Controls
 
 - Desktop keyboard: `Left Arrow` / `Right Arrow`
@@ -103,3 +116,4 @@ Compatibility notes:
 - `src/audio.js` - synthesized SFX/music + mute/unmute
 - `src/utils.js` - math/collision helpers
 - `server.mjs` - static server + shared leaderboard API (`GET/POST /api/leaderboard`)
+- `api/leaderboard.js` - Vercel serverless leaderboard API backed by KV

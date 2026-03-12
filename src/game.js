@@ -80,7 +80,9 @@ export class Game {
     this.leaderboardStorageKey = "finn_popcorn_leaderboard_v1";
     this.leaderboardApiUrl = "/api/leaderboard";
     this.maxLeaderboardEntries = 10;
+    this.maxNameLength = 10;
     this.lastPlayerStorageKey = "finn_popcorn_last_player_v1";
+    this.pendingLeaderboardOpsStorageKey = "finn_popcorn_pending_leaderboard_ops_v1";
     this.blockedNameFragments = [
       "fuck",
       "shit",
@@ -98,6 +100,8 @@ export class Game {
       "motherfucker",
     ];
     this.leaderboardEntries = this.#loadLeaderboard();
+    this.pendingLeaderboardOps = this.#loadPendingLeaderboardOps();
+    this.isLeaderboardSyncInFlight = false;
 
     this.popcornThemes = [
       {
@@ -157,7 +161,7 @@ export class Game {
     this.#renderLeaderboards();
     void this.#syncLeaderboardFromServer();
     this.leaderboardPollTimer = window.setInterval(() => {
-      if (this.state !== "playing") {
+      if (this.state !== "playing" || this.pendingLeaderboardOps.length > 0) {
         void this.#syncLeaderboardFromServer();
       }
     }, 8000);
@@ -199,7 +203,7 @@ export class Game {
 
     if (this.playerNameInput) {
       this.playerNameInput.addEventListener("input", () => {
-        const sanitized = this.playerNameInput.value.replace(/[^A-Za-z]/g, "").slice(0, 10);
+        const sanitized = this.#normalizeName(this.playerNameInput.value);
         if (sanitized !== this.playerNameInput.value) {
           this.playerNameInput.value = sanitized;
         }
@@ -1034,27 +1038,45 @@ export class Game {
       return true;
     }
 
-    const rawName = (this.playerNameInput.value || "").trim();
-    if (!rawName) {
+    const normalizedName = this.#normalizeName(this.playerNameInput.value || "");
+    if (!normalizedName) {
       this.#setNameError("Name is required.");
       return false;
     }
 
-    if (!/^[A-Za-z]{1,10}$/.test(rawName)) {
-      this.#setNameError("Use only English letters (A-Z), max 10 chars.");
+    if (!this.#isAllowedPlayerName(normalizedName)) {
+      this.#setNameError("Use English letters/spaces only, max 10 chars.");
       return false;
     }
 
-    const normalized = rawName.toLowerCase();
-    if (this.blockedNameFragments.some((fragment) => normalized.includes(fragment))) {
-      this.#setNameError("Please choose a clean name.");
-      return false;
-    }
+    const previousStoredName = this.#readLastPlayerName();
+    this.playerNameInput.value = normalizedName;
 
-    this.activePlayerName = rawName;
+    this.activePlayerName = normalizedName;
     this.#clearNameError();
-    this.#saveLastPlayerName(rawName);
+    this.#saveLastPlayerName(normalizedName);
+    if (previousStoredName && this.#normalizeNameKey(previousStoredName) !== this.#normalizeNameKey(normalizedName)) {
+      this.#renameLeaderboardPlayer(previousStoredName, normalizedName);
+    }
+
     return true;
+  }
+
+  #normalizeName(rawName) {
+    if (typeof rawName !== "string") return "";
+    const collapsed = rawName.replace(/\s+/g, " ").trim();
+    const cleaned = collapsed.replace(/[^A-Za-z ]/g, "");
+    return cleaned.slice(0, this.maxNameLength).trim();
+  }
+
+  #normalizeNameKey(name) {
+    return this.#normalizeName(name).toLowerCase();
+  }
+
+  #isAllowedPlayerName(name) {
+    if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(name)) return false;
+    const compact = name.toLowerCase().replace(/\s+/g, "");
+    return !this.blockedNameFragments.some((fragment) => compact.includes(fragment));
   }
 
   #setNameError(message) {
@@ -1073,7 +1095,7 @@ export class Game {
       if (!raw) return [];
 
       const parsed = JSON.parse(raw);
-      return this.#sanitizeLeaderboardEntries(parsed);
+      return this.#normalizeLeaderboardEntries(this.#sanitizeLeaderboardEntries(parsed));
     } catch {
       return [];
     }
@@ -1084,11 +1106,76 @@ export class Game {
 
     return payload
       .map((entry) => ({
-        name: typeof entry.name === "string" ? entry.name.slice(0, 10) : "",
+        name: this.#normalizeName(typeof entry.name === "string" ? entry.name : ""),
         score: Number.isFinite(entry.score) ? Math.max(0, Math.floor(entry.score)) : 0,
         ts: Number.isFinite(entry.ts) ? entry.ts : Date.now(),
       }))
-      .filter((entry) => /^[A-Za-z]{1,10}$/.test(entry.name));
+      .filter((entry) => this.#isAllowedPlayerName(entry.name));
+  }
+
+  #loadPendingLeaderboardOps() {
+    try {
+      const raw = localStorage.getItem(this.pendingLeaderboardOpsStorageKey);
+      if (!raw) return [];
+
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+
+      return parsed
+        .map((operation) => this.#sanitizeLeaderboardOperation(operation))
+        .filter((operation) => operation);
+    } catch {
+      return [];
+    }
+  }
+
+  #sanitizeLeaderboardOperation(operation) {
+    if (!operation || typeof operation !== "object") return null;
+    const action = String(operation.action || "").toLowerCase();
+
+    if (action === "record") {
+      const name = this.#normalizeName(typeof operation.name === "string" ? operation.name : "");
+      if (!this.#isAllowedPlayerName(name)) return null;
+      return {
+        action: "record",
+        name,
+        score: Number.isFinite(operation.score) ? Math.max(0, Math.floor(operation.score)) : 0,
+        ts: Number.isFinite(operation.ts) ? operation.ts : Date.now(),
+      };
+    }
+
+    if (action === "rename") {
+      const fromName = this.#normalizeName(typeof operation.fromName === "string" ? operation.fromName : "");
+      const toName = this.#normalizeName(typeof operation.toName === "string" ? operation.toName : "");
+      if (!this.#isAllowedPlayerName(fromName) || !this.#isAllowedPlayerName(toName)) return null;
+      return {
+        action: "rename",
+        fromName,
+        toName,
+        ts: Number.isFinite(operation.ts) ? operation.ts : Date.now(),
+      };
+    }
+
+    return null;
+  }
+
+  #savePendingLeaderboardOps() {
+    try {
+      localStorage.setItem(this.pendingLeaderboardOpsStorageKey, JSON.stringify(this.pendingLeaderboardOps));
+    } catch {
+      // Ignore storage failures.
+    }
+  }
+
+  #enqueuePendingLeaderboardOperation(operation) {
+    const sanitizedOperation = this.#sanitizeLeaderboardOperation(operation);
+    if (!sanitizedOperation) return;
+
+    this.pendingLeaderboardOps.push(sanitizedOperation);
+    if (this.pendingLeaderboardOps.length > 30) {
+      this.pendingLeaderboardOps.splice(0, this.pendingLeaderboardOps.length - 30);
+    }
+    this.#savePendingLeaderboardOps();
   }
 
   #saveLeaderboard() {
@@ -1114,11 +1201,36 @@ export class Game {
     this.leaderboardEntries = this.#normalizeLeaderboardEntries([...this.leaderboardEntries, entry]);
     this.#saveLeaderboard();
     this.#renderLeaderboards();
-    void this.#submitLeaderboardScore(entry);
+    void this.#submitLeaderboardOperation({
+      action: "record",
+      name: entry.name,
+      score: entry.score,
+      ts: entry.ts,
+    });
+  }
+
+  #renameLeaderboardPlayer(fromName, toName) {
+    const from = this.#normalizeName(fromName);
+    const to = this.#normalizeName(toName);
+    if (!this.#isAllowedPlayerName(from) || !this.#isAllowedPlayerName(to)) return;
+    if (this.#normalizeNameKey(from) === this.#normalizeNameKey(to)) return;
+
+    this.leaderboardEntries = this.#applyRenameToLeaderboard(this.leaderboardEntries, from, to);
+    this.#saveLeaderboard();
+    this.#renderLeaderboards();
+    void this.#submitLeaderboardOperation({
+      action: "rename",
+      fromName: from,
+      toName: to,
+      ts: Date.now(),
+    });
   }
 
   async #syncLeaderboardFromServer() {
+    if (this.isLeaderboardSyncInFlight) return;
+    this.isLeaderboardSyncInFlight = true;
     try {
+      await this.#flushPendingLeaderboardOperations();
       const response = await fetch(this.leaderboardApiUrl, {
         method: "GET",
         cache: "no-store",
@@ -1132,40 +1244,65 @@ export class Game {
       this.#renderLeaderboards();
     } catch {
       // Keep local leaderboard when API is unavailable.
+    } finally {
+      this.isLeaderboardSyncInFlight = false;
     }
   }
 
-  async #submitLeaderboardScore(entry) {
+  async #submitLeaderboardOperation(operation, options = {}) {
+    const { queueOnFailure = true } = options;
+    const sanitizedOperation = this.#sanitizeLeaderboardOperation(operation);
+    if (!sanitizedOperation) return false;
+
     try {
       const response = await fetch(this.leaderboardApiUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name: entry.name,
-          score: entry.score,
-          ts: entry.ts,
-        }),
+        body: JSON.stringify(sanitizedOperation),
         keepalive: true,
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        throw new Error(`Leaderboard request failed: ${response.status}`);
+      }
 
       const payload = await response.json();
       const entries = this.#sanitizeLeaderboardEntries(payload);
       this.leaderboardEntries = this.#normalizeLeaderboardEntries(entries);
       this.#saveLeaderboard();
       this.#renderLeaderboards();
+      return true;
     } catch {
-      // Keep local leaderboard when API is unavailable.
+      if (queueOnFailure) {
+        this.#enqueuePendingLeaderboardOperation(sanitizedOperation);
+      }
+      return false;
     }
+  }
+
+  async #flushPendingLeaderboardOperations() {
+    if (this.pendingLeaderboardOps.length === 0) return;
+
+    const remaining = [];
+    for (let i = 0; i < this.pendingLeaderboardOps.length; i += 1) {
+      const operation = this.pendingLeaderboardOps[i];
+      const ok = await this.#submitLeaderboardOperation(operation, { queueOnFailure: false });
+      if (!ok) {
+        remaining.push(...this.pendingLeaderboardOps.slice(i));
+        break;
+      }
+    }
+
+    this.pendingLeaderboardOps = remaining;
+    this.#savePendingLeaderboardOps();
   }
 
   #normalizeLeaderboardEntries(entries) {
     const byPlayer = new Map();
 
-    for (const entry of entries) {
-      const key = entry.name.toLowerCase();
+    for (const entry of this.#sanitizeLeaderboardEntries(entries)) {
+      const key = this.#normalizeNameKey(entry.name);
       const existing = byPlayer.get(key);
       if (!existing) {
         byPlayer.set(key, entry);
@@ -1180,6 +1317,51 @@ export class Game {
     return [...byPlayer.values()]
       .sort((a, b) => b.score - a.score || a.ts - b.ts)
       .slice(0, this.maxLeaderboardEntries);
+  }
+
+  #applyRenameToLeaderboard(entries, fromName, toName) {
+    const fromKey = this.#normalizeNameKey(fromName);
+    const toKey = this.#normalizeNameKey(toName);
+    if (!fromKey || !toKey) return this.#normalizeLeaderboardEntries(entries);
+
+    if (fromKey === toKey) {
+      return this.#normalizeLeaderboardEntries(
+        entries.map((entry) =>
+          this.#normalizeNameKey(entry.name) === fromKey ? { ...entry, name: toName } : entry
+        )
+      );
+    }
+
+    const survivors = [];
+    const mergePool = [];
+    for (const entry of entries) {
+      const key = this.#normalizeNameKey(entry.name);
+      if (key === fromKey || key === toKey) {
+        mergePool.push(entry);
+      } else {
+        survivors.push(entry);
+      }
+    }
+
+    if (mergePool.length === 0) {
+      return this.#normalizeLeaderboardEntries(entries);
+    }
+
+    let winner = mergePool[0];
+    for (let i = 1; i < mergePool.length; i += 1) {
+      const candidate = mergePool[i];
+      if (candidate.score > winner.score || (candidate.score === winner.score && candidate.ts < winner.ts)) {
+        winner = candidate;
+      }
+    }
+
+    return this.#normalizeLeaderboardEntries([
+      ...survivors,
+      {
+        ...winner,
+        name: toName,
+      },
+    ]);
   }
 
   #renderLeaderboards() {
@@ -1208,19 +1390,26 @@ export class Game {
 
   #hydrateLastPlayerName() {
     if (!this.playerNameInput) return;
+    const lastName = this.#readLastPlayerName();
+    if (lastName) {
+      this.playerNameInput.value = lastName;
+    }
+  }
+
+  #readLastPlayerName() {
+    let lastName = "";
     try {
-      const lastName = localStorage.getItem(this.lastPlayerStorageKey) || "";
-      if (/^[A-Za-z]{1,10}$/.test(lastName)) {
-        this.playerNameInput.value = lastName;
-      }
+      lastName = localStorage.getItem(this.lastPlayerStorageKey) || "";
     } catch {
       // Ignore storage failures.
     }
+    const normalizedName = this.#normalizeName(lastName);
+    return this.#isAllowedPlayerName(normalizedName) ? normalizedName : "";
   }
 
   #saveLastPlayerName(name) {
     try {
-      localStorage.setItem(this.lastPlayerStorageKey, name);
+      localStorage.setItem(this.lastPlayerStorageKey, this.#normalizeName(name));
     } catch {
       // Ignore storage failures.
     }
