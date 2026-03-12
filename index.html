@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+    />
+    <title>Finn The Dyno PopCorn King</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header id="hud" aria-live="polite">
+        <div class="hud-pill" id="score-pill">
+          <span class="label">Score</span>
+          <span id="score-value" class="value">0</span>
+        </div>
+        <div class="hud-pill" id="miss-pill">
+          <span class="label">Misses</span>
+          <span id="miss-value" class="value">0 / 3</span>
+        </div>
+        <button id="mute-btn" class="icon-btn" aria-label="Toggle sound" type="button">
+          <span id="mute-icon">🔊</span>
+        </button>
+        <div id="volume-wrap" class="hud-volume">
+          <label for="volume-slider">Volume</label>
+          <input id="volume-slider" type="range" min="0" max="100" step="1" value="72" />
+          <span id="volume-value">72%</span>
+        </div>
+      </header>
+
+      <main id="game-shell" aria-label="Finn and the Popcorn Machine game area">
+        <canvas id="game-canvas" aria-label="Game canvas"></canvas>
+
+        <section id="start-screen" class="overlay visible" aria-label="Start screen">
+          <h1>Finn The Dyno PopCorn King</h1>
+          <p>Catch popcorn before it hits the floor. Three misses and it is game over.</p>
+          <div class="player-entry">
+            <label for="player-name">Player Name</label>
+            <input
+              id="player-name"
+              type="text"
+              maxlength="10"
+              pattern="[A-Za-z]{1,10}"
+              autocomplete="off"
+              autocapitalize="off"
+              spellcheck="false"
+              placeholder="English only"
+            />
+            <p id="name-error" class="name-error" aria-live="polite"></p>
+          </div>
+          <button id="play-btn" class="primary-btn" type="button">Play</button>
+          <section class="leaderboard">
+            <h3>Leaderboard</h3>
+            <ol id="leaderboard-list-start"></ol>
+          </section>
+        </section>
+
+        <section id="game-over-screen" class="overlay" aria-label="Game over screen">
+          <h2>Game Over</h2>
+          <p id="final-score">Final Score: 0</p>
+          <button id="restart-btn" class="primary-btn" type="button">Restart</button>
+          <section class="leaderboard">
+            <h3>Leaderboard</h3>
+            <ol id="leaderboard-list-over"></ol>
+          </section>
+        </section>
+
+        <section id="milestone-banner" class="overlay banner" aria-live="polite">
+          <p id="milestone-text">Keep it up...</p>
+        </section>
+
+        <section id="pause-screen" class="overlay pause-overlay" aria-live="polite">
+          <h2>Paused</h2>
+          <p>Press Space to continue</p>
+        </section>
+      </main>
+
+      <section id="controls" aria-label="Movement controls">
+        <button id="left-btn" class="control-btn" type="button" aria-label="Move left">◀</button>
+        <button id="right-btn" class="control-btn" type="button" aria-label="Move right">▶</button>
+      </section>
+    </div>
+
+    <script type="module" src="./src/main.js?v=20260312-5"></script>
+  </body>
+</html>
