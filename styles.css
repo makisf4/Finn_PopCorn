@@ -319,6 +319,14 @@ body {
   justify-items: center;
 }
 
+.landing-hero {
+  width: 100%;
+  max-width: 920px;
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+
 .landing-copy {
   display: grid;
   gap: 18px;
