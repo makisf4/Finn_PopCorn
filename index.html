@@ -33,29 +33,79 @@
         </header>
 
         <section id="start-screen" class="overlay visible" aria-label="Start screen">
-          <h1>Finn The Dyno PopCorn King</h1>
-          <p>Catch popcorn before it hits the floor. Three misses and it is game over.</p>
-          <div class="player-entry">
-            <label for="player-name">Nickname</label>
-            <input
-              id="player-name"
-              type="text"
-              maxlength="10"
-              pattern="[A-Za-z ]{1,10}"
-              autocomplete="off"
-              autocapitalize="off"
-              spellcheck="false"
-              aria-describedby="nickname-tip"
-              placeholder="Choose a nickname"
-            />
-            <p id="nickname-tip" class="entry-tip">Do not use your real name.</p>
-            <p id="name-error" class="name-error" aria-live="polite"></p>
+          <div class="landing-shell">
+            <section class="landing-copy" aria-label="Game introduction">
+              <p class="landing-kicker">Arcade dog action</p>
+              <h1>Finn The Dyno PopCorn King</h1>
+              <p class="landing-lede">
+                Dash under wild popcorn shots, grab bonus candy from passing birds, and keep the
+                floor clean for as long as you can.
+              </p>
+
+              <div class="landing-highlights" aria-label="Game highlights">
+                <article class="feature-card">
+                  <strong>Fast rounds</strong>
+                  <span>Three misses and the run is over.</span>
+                </article>
+                <article class="feature-card">
+                  <strong>Bonus drops</strong>
+                  <span>Catch lollipops for extra points.</span>
+                </article>
+                <article class="feature-card">
+                  <strong>Pick-up play</strong>
+                  <span>Works with keyboard, mouse, or touch.</span>
+                </article>
+              </div>
+
+              <div class="landing-rules" aria-label="How to play">
+                <div class="rule-pill">
+                  <span class="rule-label">Move</span>
+                  <span class="rule-value">Arrow keys or on-screen buttons</span>
+                </div>
+                <div class="rule-pill">
+                  <span class="rule-label">Goal</span>
+                  <span class="rule-value">Catch popcorn before it hits the floor</span>
+                </div>
+                <div class="rule-pill">
+                  <span class="rule-label">Survive</span>
+                  <span class="rule-value">Exactly 3 misses per run</span>
+                </div>
+              </div>
+            </section>
+
+            <aside class="landing-panel" aria-label="Start game panel">
+              <div class="landing-panel-header">
+                <p class="panel-eyebrow">Ready to play?</p>
+                <h2>Start your next run</h2>
+              </div>
+
+              <div class="player-entry">
+                <label for="player-name">Nickname</label>
+                <input
+                  id="player-name"
+                  type="text"
+                  maxlength="10"
+                  pattern="[A-Za-z ]{1,10}"
+                  autocomplete="off"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  aria-describedby="nickname-tip"
+                  placeholder="Choose a nickname"
+                />
+                <p id="nickname-tip" class="entry-tip">Do not use your real name.</p>
+                <p id="name-error" class="name-error" aria-live="polite"></p>
+              </div>
+
+              <button id="play-btn" class="primary-btn" type="button">Play Now</button>
+
+              <p class="launch-note">Scores are saved as nickname + score on the leaderboard.</p>
+
+              <section class="leaderboard">
+                <h3>Top Players</h3>
+                <ol id="leaderboard-list-start"></ol>
+              </section>
+            </aside>
           </div>
-          <button id="play-btn" class="primary-btn" type="button">Play</button>
-          <section class="leaderboard">
-            <h3>Leaderboard</h3>
-            <ol id="leaderboard-list-start"></ol>
-          </section>
         </section>
 
         <section id="game-over-screen" class="overlay" aria-label="Game over screen">
