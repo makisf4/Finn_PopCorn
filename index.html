@@ -36,7 +36,7 @@
           <h1>Finn The Dyno PopCorn King</h1>
           <p>Catch popcorn before it hits the floor. Three misses and it is game over.</p>
           <div class="player-entry">
-            <label for="player-name">Player Name</label>
+            <label for="player-name">Nickname</label>
             <input
               id="player-name"
               type="text"
@@ -45,8 +45,10 @@
               autocomplete="off"
               autocapitalize="off"
               spellcheck="false"
-              placeholder="English letters"
+              aria-describedby="nickname-tip"
+              placeholder="Choose a nickname"
             />
+            <p id="nickname-tip" class="entry-tip">Do not use your real name.</p>
             <p id="name-error" class="name-error" aria-live="polite"></p>
           </div>
           <button id="play-btn" class="primary-btn" type="button">Play</button>

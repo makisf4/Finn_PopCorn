@@ -290,6 +290,14 @@ body {
   font-weight: 700;
 }
 
+.entry-tip {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.82);
+}
+
 #player-name {
   width: 100%;
   border: 2px solid rgba(255, 255, 255, 0.85);

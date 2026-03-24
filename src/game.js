@@ -1040,7 +1040,7 @@ export class Game {
 
     const normalizedName = this.#normalizeName(this.playerNameInput.value || "");
     if (!normalizedName) {
-      this.#setNameError("Name is required.");
+      this.#setNameError("Nickname is required.");
       return false;
     }
 
