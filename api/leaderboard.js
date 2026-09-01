@@ -1,5 +1,15 @@
 "use strict";
 
+const {
+  IP_POST_LIMIT,
+  NAME_RECORD_LIMIT,
+  RATE_LIMIT_WINDOW_MS,
+  createFixedWindowLimiter,
+  getClientIp,
+  normalizeTimestamp,
+  toRetryAfterSeconds,
+} = require("../src/shared/leaderboard-limits.cjs");
+
 const LEADERBOARD_KEY = "finn_popcorn_leaderboard_v1";
 const MAX_ENTRIES = 10;
 const MAX_NAME_LENGTH = 10;
@@ -23,6 +33,18 @@ const BLOCKED_NAME_FRAGMENTS = [
 const KV_REST_API_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
 const KV_REST_API_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
 
+// Best effort only: these in-memory counters are per warm serverless instance,
+// so concurrent or freshly started instances each enforce their own window.
+const ipLimiter = createFixedWindowLimiter({
+  limit: IP_POST_LIMIT,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+});
+
+const nameLimiter = createFixedWindowLimiter({
+  limit: NAME_RECORD_LIMIT,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+});
+
 const setJsonHeaders = (res, statusCode) => {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -36,6 +58,11 @@ const sendJson = (res, statusCode, payload) => {
 
 const sendError = (res, statusCode, message) => {
   sendJson(res, statusCode, { error: message });
+};
+
+const sendRateLimited = (res, retryAfterSeconds, message) => {
+  res.setHeader("Retry-After", String(retryAfterSeconds));
+  sendError(res, 429, message);
 };
 
 const normalizeName = (rawName) => {
@@ -230,8 +257,30 @@ module.exports = async (req, res) => {
       return;
     }
 
+    const ip = getClientIp(req.headers["x-forwarded-for"], req.socket);
+    const ipVerdict = ipLimiter.consume(ip);
+    if (!ipVerdict.allowed) {
+      sendRateLimited(res, toRetryAfterSeconds(ipVerdict.retryAfterMs), "Too many leaderboard requests");
+      return;
+    }
+
     const body = await parseRequestBody(req);
     const action = String(body.action || "record").toLowerCase();
+
+    if (action === "record") {
+      const candidateName = normalizeName(typeof body.name === "string" ? body.name : "");
+      const candidateScore = Number.isFinite(body.score)
+        ? Math.max(0, Math.floor(body.score))
+        : 0;
+      if (isAllowedName(candidateName) && candidateScore > 0) {
+        const nameVerdict = nameLimiter.consume(normalizeNameKey(candidateName));
+        if (!nameVerdict.allowed) {
+          sendRateLimited(res, toRetryAfterSeconds(nameVerdict.retryAfterMs), "Too many submissions for this name");
+          return;
+        }
+      }
+    }
+
     const current = await readLeaderboardFromKv();
 
     if (action === "rename") {
@@ -255,7 +304,7 @@ module.exports = async (req, res) => {
 
     const name = normalizeName(typeof body.name === "string" ? body.name : "");
     const score = Number.isFinite(body.score) ? Math.max(0, Math.floor(body.score)) : 0;
-    const ts = Number.isFinite(body.ts) ? body.ts : Date.now();
+    const ts = normalizeTimestamp(body.ts);
 
     if (!isAllowedName(name)) {
       sendError(res, 400, "Invalid player name");

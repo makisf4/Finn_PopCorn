@@ -3,6 +3,15 @@ import { createReadStream } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  IP_POST_LIMIT,
+  NAME_RECORD_LIMIT,
+  RATE_LIMIT_WINDOW_MS,
+  createFixedWindowLimiter,
+  getClientIp,
+  normalizeTimestamp,
+  toRetryAfterSeconds,
+} from "./src/shared/leaderboard-limits.cjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const rootDir = path.dirname(__filename);
@@ -48,6 +57,16 @@ const contentTypes = {
 
 let writeQueue = Promise.resolve();
 
+const ipLimiter = createFixedWindowLimiter({
+  limit: IP_POST_LIMIT,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+});
+
+const nameLimiter = createFixedWindowLimiter({
+  limit: NAME_RECORD_LIMIT,
+  windowMs: RATE_LIMIT_WINDOW_MS,
+});
+
 const queueWrite = (task) => {
   writeQueue = writeQueue.then(task, task);
   return writeQueue;
@@ -61,10 +80,11 @@ const sendJson = (res, statusCode, payload) => {
   res.end(JSON.stringify(payload));
 };
 
-const sendText = (res, statusCode, message) => {
+const sendText = (res, statusCode, message, extraHeaders = {}) => {
   res.writeHead(statusCode, {
     "Content-Type": "text/plain; charset=utf-8",
     "Cache-Control": "no-store",
+    ...extraHeaders,
   });
   res.end(message);
 };
@@ -213,6 +233,15 @@ const handleLeaderboard = async (req, res) => {
   }
 
   if (req.method === "POST") {
+    const ip = getClientIp(req.headers["x-forwarded-for"], req.socket);
+    const ipVerdict = ipLimiter.consume(ip);
+    if (!ipVerdict.allowed) {
+      sendText(res, 429, "Too many leaderboard requests", {
+        "Retry-After": String(toRetryAfterSeconds(ipVerdict.retryAfterMs)),
+      });
+      return;
+    }
+
     let payload;
     try {
       payload = await readRequestJson(req);
@@ -222,6 +251,22 @@ const handleLeaderboard = async (req, res) => {
     }
 
     const action = String(payload.action || "record").toLowerCase();
+
+    if (action === "record") {
+      const candidateName = normalizeName(typeof payload.name === "string" ? payload.name : "");
+      const candidateScore = Number.isFinite(payload.score)
+        ? Math.max(0, Math.floor(payload.score))
+        : 0;
+      if (isAllowedName(candidateName) && candidateScore > 0) {
+        const nameVerdict = nameLimiter.consume(normalizeNameKey(candidateName));
+        if (!nameVerdict.allowed) {
+          sendText(res, 429, "Too many submissions for this name", {
+            "Retry-After": String(toRetryAfterSeconds(nameVerdict.retryAfterMs)),
+          });
+          return;
+        }
+      }
+    }
 
     const entries = await queueWrite(async () => {
       const current = await readLeaderboard();
@@ -241,7 +286,7 @@ const handleLeaderboard = async (req, res) => {
 
       const name = normalizeName(typeof payload.name === "string" ? payload.name : "");
       const score = Number.isFinite(payload.score) ? Math.max(0, Math.floor(payload.score)) : 0;
-      const ts = Number.isFinite(payload.ts) ? payload.ts : Date.now();
+      const ts = normalizeTimestamp(payload.ts);
       if (!isAllowedName(name)) {
         throw new Error("Invalid player name");
       }

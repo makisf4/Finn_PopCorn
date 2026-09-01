@@ -4,6 +4,6 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "check:syntax": "node --check src/audio.js && node --check src/game.js && node --check src/input.js && node --check src/main.js && node --check src/renderer.js && node --check src/utils.js && node --check src/shared/gameplay.js && node --check server.mjs && node --check api/leaderboard.js && node --check tests/utils.test.js && node --check tests/gameplay.test.js"
+    "check:syntax": "node --check src/audio.js && node --check src/game.js && node --check src/input.js && node --check src/main.js && node --check src/renderer.js && node --check src/utils.js && node --check src/shared/gameplay.js && node --check src/shared/leaderboard-limits.cjs && node --check server.mjs && node --check api/leaderboard.js && node --check tests/utils.test.js && node --check tests/gameplay.test.js && node --check tests/leaderboard-limits.test.js"
   }
 }
