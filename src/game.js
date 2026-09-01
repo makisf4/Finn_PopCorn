@@ -1,4 +1,4 @@
-import { AudioManager } from "./audio.js?v=20260312-4";
+import { AudioManager } from "./audio.js?v=20260901-2";
 import { InputManager } from "./input.js?v=20260901-2";
 import { Renderer } from "./renderer.js?v=20260901-13";
 import {
@@ -280,6 +280,7 @@ export class Game {
 
     window.addEventListener("resize", () => this.#resize());
     window.addEventListener("orientationchange", () => this.#resize());
+    document.addEventListener("visibilitychange", () => this.audio.handleVisibilityChange());
   }
 
   async #unlockAudio() {
@@ -787,6 +788,9 @@ export class Game {
     });
 
     this.audio.catch();
+    if (this.catchStreak === 5 || this.catchStreak === 10 || this.catchStreak === 18) {
+      this.audio.combo(getComboMultiplier(this.catchStreak));
+    }
     this.#updateHud(true);
     this.#checkMilestone();
   }
@@ -1012,6 +1016,7 @@ export class Game {
   #updateHud(scorePop = false) {
     this.scoreValue.textContent = String(this.score);
     this.missValue.textContent = formatMisses(this.misses, this.maxMisses);
+    this.audio.setIntensity(clamp(this.score / 500, 0, 1));
     const comboMultiplier = getComboMultiplier(this.catchStreak);
     if (this.comboPill) {
       this.comboPill.hidden = comboMultiplier === 1;

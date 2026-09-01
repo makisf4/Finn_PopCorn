@@ -14,6 +14,9 @@ export class AudioManager {
     this.masterGainBase = 0.56;
     this.musicGainBase = 0.31;
     this.musicStopped = false;
+    this.intensity = 0;
+    this.settingsStorageKey = "finn_popcorn_audio_v1";
+    this.#loadPersistedSettings();
     this.musicPattern = {
       tempo: 300,
       tempoMs: 200,
@@ -44,7 +47,7 @@ export class AudioManager {
         "do",
       ],
       durations: [2, 1, 1, 1, 2, 1, 2, 1, 1, 1, 2, 1, 2, 1, 1, 1, 2, 1, 2, 1, 1, 1, 2, 1],
-      bass: [],
+      bass: ["do", "do", "sol", "sol", "fa", "fa", "sol", "sol"],
     };
   }
 
@@ -79,6 +82,7 @@ export class AudioManager {
   toggleMute() {
     this.muted = !this.muted;
     this.#applyMasterGain();
+    this.#persistSettings();
     return this.muted;
   }
 
@@ -88,7 +92,22 @@ export class AudioManager {
       this.muted = false;
     }
     this.#applyMasterGain();
+    this.#persistSettings();
     return this.volume;
+  }
+
+  setIntensity(level) {
+    const next = clamp(Number(level) || 0, 0, 1);
+    if (next === this.intensity) return;
+    this.intensity = next;
+    this.#applyMusicGain();
+  }
+
+  handleVisibilityChange() {
+    if (!this.started || !this.ctx) return;
+    if (document.visibilityState !== "visible") return;
+    if (this.ctx.state !== "suspended") return;
+    this.ctx.resume().catch(() => {});
   }
 
   getVolume() {
@@ -130,22 +149,62 @@ export class AudioManager {
   }
 
   catch() {
-    this.#tone({
+    if (!this.ctx || this.muted || this.ctx.state !== "running") return;
+    const now = this.ctx.currentTime;
+    this.#toneAt({
       type: "triangle",
       freqA: 680,
       freqB: 920,
       duration: 0.12,
       volume: 0.14,
+      startTime: now,
+    });
+    this.#toneAt({
+      type: "sine",
+      freqA: 1320,
+      freqB: 1760,
+      duration: 0.07,
+      volume: 0.07,
+      startTime: now,
     });
   }
 
+  combo(multiplier) {
+    if (!this.ctx || this.muted || this.ctx.state !== "running") return;
+    const tier = clamp(Math.round(Number(multiplier) || 2), 2, 4);
+    const now = this.ctx.currentTime;
+    const baseFreq = 520 + (tier - 2) * 110;
+    for (let i = 0; i < tier; i += 1) {
+      const freq = baseFreq * 2 ** ((4 * i) / 12);
+      this.#toneAt({
+        type: "sine",
+        freqA: freq,
+        freqB: freq * 2 ** (3 / 12),
+        duration: 0.09,
+        volume: 0.1,
+        startTime: now + i * 0.07,
+      });
+    }
+  }
+
   miss() {
-    this.#tone({
+    if (!this.ctx || this.muted || this.ctx.state !== "running") return;
+    const now = this.ctx.currentTime;
+    this.#toneAt({
       type: "sawtooth",
-      freqA: 300,
-      freqB: 120,
+      freqA: 320,
+      freqB: 110,
       duration: 0.16,
       volume: 0.13,
+      startTime: now,
+    });
+    this.#toneAt({
+      type: "square",
+      freqA: 150,
+      freqB: 70,
+      duration: 0.12,
+      volume: 0.1,
+      startTime: now,
     });
   }
 
@@ -205,7 +264,8 @@ export class AudioManager {
 
     const idx = this.musicStep % lead.length;
     const unit = Number.isFinite(durations[idx]) ? durations[idx] : 1;
-    const tempoMs = Math.max(120, Number(this.musicPattern.tempoMs) || Math.round(60000 / 140));
+    const baseTempoMs = Math.max(120, Number(this.musicPattern.tempoMs) || Math.round(60000 / 140));
+    const tempoMs = Math.max(110, Math.round(baseTempoMs / (1 + this.intensity * 0.3)));
     const stepMs = Math.max(120, Math.round(unit * tempoMs));
     const noteDuration = Math.max(0.11, (stepMs * 0.001) * 0.9);
 
@@ -295,7 +355,8 @@ export class AudioManager {
   }
 
   #targetMusicGain() {
-    return this.musicStopped ? 0 : this.musicGainBase;
+    if (this.musicStopped) return 0;
+    return this.musicGainBase * (1 + this.intensity * 0.35);
   }
 
   #applyMasterGain() {
@@ -306,5 +367,35 @@ export class AudioManager {
   #applyMusicGain() {
     if (!this.musicGain || !this.ctx) return;
     this.musicGain.gain.setTargetAtTime(this.#targetMusicGain(), this.ctx.currentTime, 0.03);
+  }
+
+  #loadPersistedSettings() {
+    let raw = null;
+    try {
+      raw = localStorage.getItem(this.settingsStorageKey);
+    } catch {
+      return;
+    }
+    if (!raw) return;
+
+    try {
+      const stored = JSON.parse(raw);
+      if (Number.isFinite(stored?.volume)) {
+        this.volume = clamp(stored.volume, 0, 1);
+      }
+      if (typeof stored?.muted === "boolean") {
+        this.muted = stored.muted;
+      }
+    } catch {
+      return;
+    }
+  }
+
+  #persistSettings() {
+    try {
+      localStorage.setItem(this.settingsStorageKey, JSON.stringify({ muted: this.muted, volume: this.volume }));
+    } catch {
+      return;
+    }
   }
 }
