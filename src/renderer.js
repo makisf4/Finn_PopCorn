@@ -13,6 +13,8 @@ export class Renderer {
     this.height = 0;
     this.dpr = 1;
     this.dogAnimations = this.#createDogAnimations();
+    this.backgroundLayer = null;
+    this.groundLayer = null;
   }
 
   resize(width, height, dpr) {
@@ -23,6 +25,8 @@ export class Renderer {
     this.canvas.height = Math.floor(height * dpr);
     this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     this.ctx.imageSmoothingEnabled = true;
+    this.backgroundLayer = null;
+    this.groundLayer = null;
   }
 
   render(scene) {
@@ -70,41 +74,12 @@ export class Renderer {
 
   #drawBackground(scene) {
     const { ctx } = this;
-    const sky = ctx.createLinearGradient(0, 0, 0, this.height);
-    sky.addColorStop(0, "#88ddff");
-    sky.addColorStop(0.56, "#c9f0ff");
-    sky.addColorStop(1, "#f2fff8");
-    ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, this.width, this.height);
+    if (this.width <= 0 || this.height <= 0) return;
 
-    const sunX = this.width * 0.16;
-    const sunY = this.height * 0.16;
-    const glow = ctx.createRadialGradient(sunX, sunY, 10, sunX, sunY, this.height * 0.17);
-    glow.addColorStop(0, "rgba(255, 244, 164, 0.95)");
-    glow.addColorStop(1, "rgba(255, 244, 164, 0)");
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(sunX, sunY, this.height * 0.17, 0, Math.PI * 2);
-    ctx.fill();
-
-    this.#drawCloud(this.width * 0.16, this.height * 0.18, this.height * 0.06, 0.95);
-    this.#drawCloud(this.width * 0.45, this.height * 0.12, this.height * 0.07, 0.85);
-    this.#drawCloud(this.width * 0.68, this.height * 0.22, this.height * 0.055, 0.92);
-
-    const hillBack = ctx.createLinearGradient(0, this.height * 0.56, 0, this.height * 0.88);
-    hillBack.addColorStop(0, "#77d677");
-    hillBack.addColorStop(1, "#57b85a");
-
-    ctx.fillStyle = hillBack;
-    ctx.beginPath();
-    ctx.moveTo(0, this.height * 0.66);
-    ctx.quadraticCurveTo(this.width * 0.2, this.height * 0.54, this.width * 0.41, this.height * 0.67);
-    ctx.quadraticCurveTo(this.width * 0.56, this.height * 0.74, this.width * 0.74, this.height * 0.6);
-    ctx.quadraticCurveTo(this.width * 0.88, this.height * 0.5, this.width, this.height * 0.67);
-    ctx.lineTo(this.width, this.height);
-    ctx.lineTo(0, this.height);
-    ctx.closePath();
-    ctx.fill();
+    if (!this.backgroundLayer) {
+      this.backgroundLayer = this.#buildBackgroundLayer();
+    }
+    ctx.drawImage(this.backgroundLayer, 0, 0, this.width, this.height);
 
     const stripeOffset = (scene.time * 18) % 36;
     ctx.globalAlpha = 0.12;
@@ -115,27 +90,99 @@ export class Renderer {
     ctx.globalAlpha = 1;
   }
 
-  #drawGround(scene) {
-    const { ctx } = this;
-    const y = scene.groundY;
-    const turf = ctx.createLinearGradient(0, y - 15, 0, this.height);
-    turf.addColorStop(0, "#85df64");
-    turf.addColorStop(1, "#4aa248");
-    ctx.fillStyle = turf;
-    ctx.fillRect(0, y, this.width, this.height - y);
+  #buildBackgroundLayer() {
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.floor(this.width * this.dpr));
+    canvas.height = Math.max(1, Math.floor(this.height * this.dpr));
+    const bgCtx = canvas.getContext("2d", { alpha: false });
+    bgCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
-    ctx.strokeStyle = "rgba(28, 84, 27, 0.35)";
-    ctx.lineWidth = 2;
-    for (let x = -14; x < this.width + 20; x += 24) {
-      ctx.beginPath();
-      ctx.moveTo(x, y + 6);
-      ctx.quadraticCurveTo(x + 10, y - 8, x + 20, y + 6);
-      ctx.stroke();
-    }
+    const sky = bgCtx.createLinearGradient(0, 0, 0, this.height);
+    sky.addColorStop(0, "#88ddff");
+    sky.addColorStop(0.56, "#c9f0ff");
+    sky.addColorStop(1, "#f2fff8");
+    bgCtx.fillStyle = sky;
+    bgCtx.fillRect(0, 0, this.width, this.height);
+
+    const sunX = this.width * 0.16;
+    const sunY = this.height * 0.16;
+    const glow = bgCtx.createRadialGradient(sunX, sunY, 10, sunX, sunY, this.height * 0.17);
+    glow.addColorStop(0, "rgba(255, 244, 164, 0.95)");
+    glow.addColorStop(1, "rgba(255, 244, 164, 0)");
+    bgCtx.fillStyle = glow;
+    bgCtx.beginPath();
+    bgCtx.arc(sunX, sunY, this.height * 0.17, 0, Math.PI * 2);
+    bgCtx.fill();
+
+    this.#drawCloud(bgCtx, this.width * 0.16, this.height * 0.18, this.height * 0.06, 0.95);
+    this.#drawCloud(bgCtx, this.width * 0.45, this.height * 0.12, this.height * 0.07, 0.85);
+    this.#drawCloud(bgCtx, this.width * 0.68, this.height * 0.22, this.height * 0.055, 0.92);
+
+    const hillBack = bgCtx.createLinearGradient(0, this.height * 0.56, 0, this.height * 0.88);
+    hillBack.addColorStop(0, "#77d677");
+    hillBack.addColorStop(1, "#57b85a");
+
+    bgCtx.fillStyle = hillBack;
+    bgCtx.beginPath();
+    bgCtx.moveTo(0, this.height * 0.66);
+    bgCtx.quadraticCurveTo(this.width * 0.2, this.height * 0.54, this.width * 0.41, this.height * 0.67);
+    bgCtx.quadraticCurveTo(this.width * 0.56, this.height * 0.74, this.width * 0.74, this.height * 0.6);
+    bgCtx.quadraticCurveTo(this.width * 0.88, this.height * 0.5, this.width, this.height * 0.67);
+    bgCtx.lineTo(this.width, this.height);
+    bgCtx.lineTo(0, this.height);
+    bgCtx.closePath();
+    bgCtx.fill();
+
+    return canvas;
   }
 
-  #drawCloud(x, y, size, alpha) {
+  #drawGround(scene) {
     const { ctx } = this;
+    if (this.width <= 0 || this.height <= 0) return;
+
+    const groundY = scene.groundY;
+    if (!this.groundLayer || this.groundLayer.groundY !== groundY) {
+      this.groundLayer = this.#buildGroundLayer(groundY);
+    }
+
+    ctx.drawImage(
+      this.groundLayer.canvas,
+      0,
+      this.groundLayer.top,
+      this.width,
+      this.groundLayer.height
+    );
+  }
+
+  #buildGroundLayer(groundY) {
+    const top = groundY - 8;
+    const layerHeight = Math.max(1, this.height - top);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.floor(this.width * this.dpr));
+    canvas.height = Math.max(1, Math.floor(layerHeight * this.dpr));
+    const layerCtx = canvas.getContext("2d");
+    layerCtx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    layerCtx.translate(0, -top);
+
+    const turf = layerCtx.createLinearGradient(0, groundY - 15, 0, this.height);
+    turf.addColorStop(0, "#85df64");
+    turf.addColorStop(1, "#4aa248");
+    layerCtx.fillStyle = turf;
+    layerCtx.fillRect(0, groundY, this.width, this.height - groundY);
+
+    layerCtx.strokeStyle = "rgba(28, 84, 27, 0.35)";
+    layerCtx.lineWidth = 2;
+    for (let x = -14; x < this.width + 20; x += 24) {
+      layerCtx.beginPath();
+      layerCtx.moveTo(x, groundY + 6);
+      layerCtx.quadraticCurveTo(x + 10, groundY - 8, x + 20, groundY + 6);
+      layerCtx.stroke();
+    }
+
+    return { canvas, top, height: layerHeight, groundY };
+  }
+
+  #drawCloud(ctx, x, y, size, alpha) {
     ctx.save();
     ctx.translate(x, y);
     ctx.globalAlpha = alpha;

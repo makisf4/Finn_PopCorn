@@ -1,6 +1,6 @@
 import { AudioManager } from "./audio.js?v=20260901-2";
 import { InputManager } from "./input.js?v=20260901-2";
-import { Renderer } from "./renderer.js?v=20260901-13";
+import { Renderer } from "./renderer.js?v=20260901-14";
 import {
   bonusDropXRange,
   COUNTDOWN_DURATION,
