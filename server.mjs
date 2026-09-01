@@ -310,7 +310,14 @@ const handleLeaderboard = async (req, res) => {
 };
 
 const toSafeFilePath = (pathname) => {
-  const requested = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
+  let decodedPathname;
+  try {
+    decodedPathname = decodeURIComponent(pathname);
+  } catch {
+    return null;
+  }
+
+  const requested = decodedPathname === "/" ? "index.html" : decodedPathname.replace(/^\/+/, "");
   const normalized = path.normalize(path.join(rootDir, requested));
   if (!normalized.startsWith(rootDir)) {
     return null;
