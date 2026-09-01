@@ -1,4 +1,4 @@
-import { Game } from "./game.js?v=20260312-15";
+import { Game } from "./game.js?v=20260901-16";
 
 const byId = (id) => document.getElementById(id);
 
@@ -51,6 +51,10 @@ const game = new Game({
   startScreen: byId("start-screen"),
   gameOverScreen: byId("game-over-screen"),
   pauseScreen: byId("pause-screen"),
+  pauseBtn: byId("pause-btn"),
+  resumeBtn: byId("resume-btn"),
+  pauseIcon: byId("pause-icon"),
+  gameAnnouncer: byId("game-announcer"),
   playBtn: byId("play-btn"),
   restartBtn: byId("restart-btn"),
   finalScore: byId("final-score"),

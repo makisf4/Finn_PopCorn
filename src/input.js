@@ -17,6 +17,13 @@ export class InputManager {
     return 0;
   }
 
+  clearHeldInput() {
+    this.left = false;
+    this.right = false;
+    this.leftBtn.classList.remove("active");
+    this.rightBtn.classList.remove("active");
+  }
+
   #bindKeyboard() {
     window.addEventListener("keydown", (event) => {
       if (event.code === "ArrowLeft") {
@@ -40,12 +47,7 @@ export class InputManager {
       }
     });
 
-    window.addEventListener("blur", () => {
-      this.left = false;
-      this.right = false;
-      this.leftBtn.classList.remove("active");
-      this.rightBtn.classList.remove("active");
-    });
+    window.addEventListener("blur", () => this.clearHeldInput());
   }
 
   #bindButton(button, direction) {
@@ -74,12 +76,18 @@ export class InputManager {
     if (window.PointerEvent) {
       button.addEventListener("pointerdown", down, { passive: false });
       button.addEventListener("pointerup", up, { passive: false });
-      button.addEventListener("pointercancel", up, { passive: false });
+      button.addEventListener("pointercancel", (event) => {
+        event.preventDefault();
+        this.clearHeldInput();
+      }, { passive: false });
       button.addEventListener("pointerleave", up, { passive: false });
     } else {
       button.addEventListener("touchstart", down, { passive: false });
       button.addEventListener("touchend", up, { passive: false });
-      button.addEventListener("touchcancel", up, { passive: false });
+      button.addEventListener("touchcancel", (event) => {
+        event.preventDefault();
+        this.clearHeldInput();
+      }, { passive: false });
       button.addEventListener("mousedown", down);
       button.addEventListener("mouseup", up);
       button.addEventListener("mouseleave", up);

@@ -1,4 +1,8 @@
-import { shouldShowBonusBirdAlert } from "./shared/gameplay.js";
+import {
+  COUNTDOWN_DURATION,
+  getCountdownNumber,
+  shouldShowBonusBirdAlert,
+} from "./shared/gameplay.js?v=20260901-2";
 import { clamp } from "./utils.js";
 
 export class Renderer {
@@ -59,6 +63,7 @@ export class Renderer {
     this.#drawDog(scene);
     this.#drawGround(scene);
     this.#drawGameOverFx(scene);
+    this.#drawCountdown(scene);
 
     ctx.restore();
   }
@@ -650,6 +655,25 @@ export class Renderer {
       spriteDrawHeight
     );
 
+    ctx.restore();
+  }
+
+  #drawCountdown(scene) {
+    if (scene.state !== "countdown") return;
+
+    const { ctx } = this;
+    const label = getCountdownNumber(scene.countdownElapsed, COUNTDOWN_DURATION);
+    ctx.save();
+    ctx.fillStyle = "rgba(8, 28, 64, 0.2)";
+    ctx.fillRect(0, 0, this.width, this.height);
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `900 ${Math.round(clamp(this.width * 0.2, 64, 150))}px Trebuchet MS, sans-serif`;
+    ctx.lineWidth = Math.max(4, this.width * 0.012);
+    ctx.strokeStyle = "rgba(7, 24, 56, 0.9)";
+    ctx.strokeText(label, this.width * 0.5, this.height * 0.42);
+    ctx.fillStyle = label === "GO" ? "#ffdf72" : "#ffffff";
+    ctx.fillText(label, this.width * 0.5, this.height * 0.42);
     ctx.restore();
   }
 

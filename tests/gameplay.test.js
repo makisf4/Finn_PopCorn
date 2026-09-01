@@ -8,8 +8,23 @@ import {
   secondsToBonusDrop,
   shouldShowBonusBirdAlert,
   BATCH_COUNT_CAP,
+  COUNTDOWN_DURATION,
   MAX_RAMP_BATCH,
+  getCountdownNumber,
 } from "../src/shared/gameplay.js";
+
+describe("getCountdownNumber", () => {
+  it("shows 3-2-1 followed by GO during the countdown", () => {
+    assert.equal(getCountdownNumber(0), "3");
+    assert.equal(getCountdownNumber(COUNTDOWN_DURATION * 0.22), "2");
+    assert.equal(getCountdownNumber(COUNTDOWN_DURATION * 0.44), "1");
+    assert.equal(getCountdownNumber(COUNTDOWN_DURATION * 0.7), "GO");
+  });
+
+  it("keeps GO as the terminal value", () => {
+    assert.equal(getCountdownNumber(COUNTDOWN_DURATION * 2), "GO");
+  });
+});
 
 describe("getBatchRange", () => {
   it("keeps the early, gentle opening batches as today", () => {

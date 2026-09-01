@@ -7,13 +7,13 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no"
     />
     <title>Finn The Dyno PopCorn King</title>
-    <link rel="stylesheet" href="./styles.css?v=20260313-2" />
+    <link rel="stylesheet" href="./styles.css?v=20260901-3" />
   </head>
   <body>
     <div id="app">
       <main id="game-shell" aria-label="Finn and the Popcorn Machine game area">
         <canvas id="game-canvas" aria-label="Game canvas"></canvas>
-        <header id="hud" aria-live="polite">
+        <header id="hud">
           <div class="hud-pill" id="score-pill">
             <span class="label">Score</span>
             <span id="score-value" class="value">0</span>
@@ -24,6 +24,9 @@
           </div>
           <button id="mute-btn" class="icon-btn" aria-label="Toggle sound" type="button">
             <span id="mute-icon">🔊</span>
+          </button>
+          <button id="pause-btn" class="icon-btn" aria-label="Pause game" type="button">
+            <span id="pause-icon">Ⅱ</span>
           </button>
           <div id="volume-wrap" class="hud-volume">
             <label for="volume-slider">Volume</label>
@@ -128,10 +131,12 @@
           <p id="milestone-text">Keep it up...</p>
         </section>
 
-        <section id="pause-screen" class="overlay pause-overlay" aria-live="polite">
+        <section id="pause-screen" class="overlay pause-overlay" aria-live="polite" aria-label="Game paused">
           <h2>Paused</h2>
-          <p>Press Space to continue</p>
+          <p>Press Space or select Resume to continue</p>
+          <button id="resume-btn" class="primary-btn" type="button">Resume</button>
         </section>
+        <div id="game-announcer" class="sr-only" role="status" aria-live="assertive" aria-atomic="true"></div>
       </main>
 
       <section id="controls" aria-label="Movement controls">
@@ -140,6 +145,6 @@
       </section>
     </div>
 
-    <script type="module" src="./src/main.js?v=20260313-3"></script>
+    <script type="module" src="./src/main.js?v=20260901-4"></script>
   </body>
 </html>

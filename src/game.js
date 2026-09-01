@@ -1,7 +1,13 @@
 import { AudioManager } from "./audio.js?v=20260312-4";
-import { InputManager } from "./input.js";
-import { Renderer } from "./renderer.js?v=20260312-12";
-import { bonusDropXRange, getBatchRange, getBatchRecovery, isLastChance } from "./shared/gameplay.js";
+import { InputManager } from "./input.js?v=20260901-2";
+import { Renderer } from "./renderer.js?v=20260901-13";
+import {
+  bonusDropXRange,
+  COUNTDOWN_DURATION,
+  getBatchRange,
+  getBatchRecovery,
+  isLastChance,
+} from "./shared/gameplay.js?v=20260901-2";
 import { clamp, circleRectCollision, formatMisses, lerp, rand, randInt, smoothstep } from "./utils.js";
 
 export class Game {
@@ -12,6 +18,10 @@ export class Game {
     this.startScreen = elements.startScreen;
     this.gameOverScreen = elements.gameOverScreen;
     this.pauseScreen = elements.pauseScreen;
+    this.pauseBtn = elements.pauseBtn;
+    this.resumeBtn = elements.resumeBtn;
+    this.pauseIcon = elements.pauseIcon;
+    this.gameAnnouncer = elements.gameAnnouncer;
     this.playBtn = elements.playBtn;
     this.restartBtn = elements.restartBtn;
     this.finalScore = elements.finalScore;
@@ -41,6 +51,7 @@ export class Game {
 
     this.maxMisses = 3;
     this.state = "start";
+    this.countdownElapsed = 0;
 
     this.width = 0;
     this.height = 0;
@@ -186,6 +197,13 @@ export class Game {
       this.#showStartScreen();
     });
 
+    const pause = () => {
+      this.#unlockAudio();
+      this.#togglePause();
+    };
+    this.pauseBtn?.addEventListener("click", pause);
+    this.resumeBtn?.addEventListener("click", pause);
+
     this.muteBtn.addEventListener("click", () => {
       this.#unlockAudio();
       const muted = this.audio.toggleMute();
@@ -257,10 +275,13 @@ export class Game {
       return;
     }
 
-    this.state = "playing";
+    this.state = "countdown";
+    this.countdownElapsed = 0;
+    this.input.clearHeldInput();
     this.startScreen.classList.remove("visible");
     this.gameOverScreen.classList.remove("visible");
     this.#hidePauseOverlay();
+    this.#setPauseButtonState(false);
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -276,7 +297,7 @@ export class Game {
     this.bonusDrops.length = 0;
     this.particles.length = 0;
     this.launchEvents.length = 0;
-    this.nextBatchAt = 0.8;
+    this.nextBatchAt = 0;
     this.nextBonusBirdAt = rand(this.bonusSpawnMin, this.bonusSpawnMax);
     this.shake = 0;
     this.milestoneBannerTimer = 0;
@@ -287,10 +308,13 @@ export class Game {
 
     this.#resetDogPosition();
     this.#updateHud(true);
+    this.#announce("Game starting. Get ready.");
   }
 
   #endGame() {
     this.state = "gameover";
+    this.countdownElapsed = 0;
+    this.input.clearHeldInput();
     this.gameOverElapsed = 0;
     this.gameOverFxTimer = 0.85;
     this.launchEvents.length = 0;
@@ -315,12 +339,16 @@ export class Game {
     this.#recordLeaderboardScore();
     this.finalScore.textContent = `Final Score: ${this.score} - ${this.activePlayerName}`;
     this.gameOverScreen.classList.add("visible");
+    this.#announce(`Game over. Final score ${this.score}.`);
     this.audio.stopMusic();
     this.audio.gameOver();
   }
 
   #showStartScreen() {
     this.state = "start";
+    this.countdownElapsed = 0;
+    this.input.clearHeldInput();
+    this.#setPauseButtonState(false);
     this.startScreen.classList.add("visible");
     this.gameOverScreen.classList.remove("visible");
     this.#hidePauseOverlay();
@@ -404,6 +432,16 @@ export class Game {
       this.#updateDog(dt);
     } else {
       this.dog.movement = lerp(this.dog.movement, 0, dt * 8);
+    }
+
+    if (this.state === "countdown") {
+      this.countdownElapsed += dt;
+      if (this.countdownElapsed >= COUNTDOWN_DURATION) {
+        this.state = "playing";
+        this.nextBatchAt = this.gameClock;
+        this.#announce("Go!");
+      }
+      return;
     }
 
     if (this.state === "playing") {
@@ -1034,6 +1072,7 @@ export class Game {
     this.renderer.render({
       time: this.time,
       state: this.state,
+      countdownElapsed: this.countdownElapsed,
       gameOverElapsed: this.gameOverElapsed,
       gameOverFx: this.gameOverFxTimer,
       width: this.width,
@@ -1435,7 +1474,10 @@ export class Game {
   #togglePause() {
     if (this.state === "playing") {
       this.state = "paused";
+      this.input.clearHeldInput();
       this.#showPauseOverlay();
+      this.#setPauseButtonState(true);
+      this.#announce("Game paused.");
       this.audio.stopMusic();
       return;
     }
@@ -1443,8 +1485,24 @@ export class Game {
     if (this.state === "paused") {
       this.state = "playing";
       this.#hidePauseOverlay();
+      this.#setPauseButtonState(false);
+      this.#announce("Game resumed.");
       this.audio.resumeMusic();
     }
+  }
+
+  #setPauseButtonState(isPaused) {
+    if (!this.pauseBtn) return;
+    this.pauseBtn.setAttribute("aria-label", isPaused ? "Resume game" : "Pause game");
+    if (this.pauseIcon) this.pauseIcon.textContent = isPaused ? "▶" : "Ⅱ";
+  }
+
+  #announce(message) {
+    if (!this.gameAnnouncer) return;
+    this.gameAnnouncer.textContent = "";
+    window.setTimeout(() => {
+      this.gameAnnouncer.textContent = message;
+    }, 0);
   }
 
   #showPauseOverlay() {

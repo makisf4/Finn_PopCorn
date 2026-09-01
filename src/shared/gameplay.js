@@ -2,6 +2,14 @@ export const MAX_RAMP_BATCH = 10;
 export const BATCH_COUNT_CAP = 28;
 export const BIRD_ALERT_LEAD = 0.6;
 export const MACHINE_CLEARANCE = 0.25;
+export const COUNTDOWN_DURATION = 1.4;
+
+export function getCountdownNumber(elapsed, duration = COUNTDOWN_DURATION) {
+  if (elapsed >= duration * 0.64) return "GO";
+  if (elapsed >= duration * 0.426) return "1";
+  if (elapsed >= duration * 0.213) return "2";
+  return "3";
+}
 
 export function getBatchRange(batchNumber) {
   if (batchNumber === 1) return [2, 3];
