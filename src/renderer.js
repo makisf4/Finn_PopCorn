@@ -2,7 +2,7 @@ import {
   COUNTDOWN_DURATION,
   getCountdownNumber,
   shouldShowBonusBirdAlert,
-} from "./shared/gameplay.js?v=20260901-2";
+} from "./shared/gameplay.js?v=20260901-3";
 import { clamp } from "./utils.js";
 
 export class Renderer {

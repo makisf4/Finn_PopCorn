@@ -108,7 +108,6 @@ body {
 }
 
 .hud-warning {
-  grid-column: 1 / -1;
   justify-self: start;
   display: none;
   max-width: min(100%, 380px);

@@ -130,6 +130,7 @@ export class Game {
     this.leaderboardEntries = this.#loadLeaderboard();
     this.pendingLeaderboardOps = this.#loadPendingLeaderboardOps();
     this.isLeaderboardSyncInFlight = false;
+    this.leaderboardRetryAfter = 0;
 
     this.popcornThemes = [
       {
@@ -1358,7 +1359,7 @@ export class Game {
   }
 
   async #syncLeaderboardFromServer() {
-    if (this.isLeaderboardSyncInFlight) return;
+    if (this.isLeaderboardSyncInFlight || Date.now() < this.leaderboardRetryAfter) return;
     this.isLeaderboardSyncInFlight = true;
     try {
       await this.#flushPendingLeaderboardOperations();
@@ -1385,6 +1386,13 @@ export class Game {
     const sanitizedOperation = this.#sanitizeLeaderboardOperation(operation);
     if (!sanitizedOperation) return false;
 
+    if (Date.now() < this.leaderboardRetryAfter) {
+      if (queueOnFailure) {
+        this.#enqueuePendingLeaderboardOperation(sanitizedOperation);
+      }
+      return false;
+    }
+
     try {
       const response = await fetch(this.leaderboardApiUrl, {
         method: "POST",
@@ -1395,6 +1403,13 @@ export class Game {
         keepalive: true,
       });
       if (!response.ok) {
+        if (response.status === 429) {
+          const retrySeconds = Number(response.headers.get("Retry-After"));
+          const retryMs = Number.isFinite(retrySeconds)
+            ? clamp(retrySeconds, 1, 3600) * 1000
+            : 60_000;
+          this.leaderboardRetryAfter = Date.now() + retryMs;
+        }
         throw new Error(`Leaderboard request failed: ${response.status}`);
       }
 
