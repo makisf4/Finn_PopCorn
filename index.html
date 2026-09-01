@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no"
     />
     <title>Finn The Dyno PopCorn King</title>
-    <link rel="stylesheet" href="./styles.css?v=20260313-1" />
+    <link rel="stylesheet" href="./styles.css?v=20260313-2" />
   </head>
   <body>
     <div id="app">
@@ -29,6 +29,9 @@
             <label for="volume-slider">Volume</label>
             <input id="volume-slider" type="range" min="0" max="100" step="1" value="72" />
             <span id="volume-value">72%</span>
+          </div>
+          <div id="last-chance-warn" class="hud-warning" aria-live="polite">
+            Last miss - catch everything!
           </div>
         </header>
 
@@ -137,6 +140,6 @@
       </section>
     </div>
 
-    <script type="module" src="./src/main.js?v=20260313-2"></script>
+    <script type="module" src="./src/main.js?v=20260313-3"></script>
   </body>
 </html>

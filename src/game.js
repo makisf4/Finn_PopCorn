@@ -1,6 +1,7 @@
 import { AudioManager } from "./audio.js?v=20260312-4";
 import { InputManager } from "./input.js";
-import { Renderer } from "./renderer.js?v=20260312-11";
+import { Renderer } from "./renderer.js?v=20260312-12";
+import { bonusDropXRange, getBatchRange, getBatchRecovery, isLastChance } from "./shared/gameplay.js";
 import { clamp, circleRectCollision, formatMisses, lerp, rand, randInt, smoothstep } from "./utils.js";
 
 export class Game {
@@ -20,6 +21,7 @@ export class Game {
     this.volumeValue = elements.volumeValue;
     this.milestoneBanner = elements.milestoneBanner;
     this.milestoneText = elements.milestoneText;
+    this.lastChanceWarn = elements.lastChanceWarn;
     this.playerNameInput = elements.playerNameInput;
     this.nameError = elements.nameError;
     this.leaderboardListStart = elements.leaderboardListStart;
@@ -280,6 +282,7 @@ export class Game {
     this.milestoneBannerTimer = 0;
     this.lastMilestoneScore = 0;
     this.#hideMilestoneBanner();
+    this.#hideLastChanceWarn();
     this.audio.resumeMusic();
 
     this.#resetDogPosition();
@@ -296,6 +299,7 @@ export class Game {
     this.bonusDrops.length = 0;
     this.milestoneBannerTimer = 0;
     this.#hideMilestoneBanner();
+    this.#hideLastChanceWarn();
     this.#hidePauseOverlay();
     this.shake = Math.max(this.shake, 14);
     this.#spawnParticles(this.dog.x, this.dog.y - this.dog.h * 0.18, {
@@ -322,6 +326,7 @@ export class Game {
     this.#hidePauseOverlay();
     this.#clearNameError();
     this.#hideMilestoneBanner();
+    this.#hideLastChanceWarn();
     this.milestoneBannerTimer = 0;
     this.gameOverElapsed = 0;
     this.gameOverFxTimer = 0;
@@ -527,7 +532,8 @@ export class Game {
     const x = fromLeft ? -w * 0.8 : this.width + w * 0.8;
     const speed = this.width * rand(0.115, 0.165);
     const vx = fromLeft ? speed : -speed;
-    const dropX = rand(this.width * 0.16, this.width * 0.84);
+    const [dropMin, dropMax] = bonusDropXRange(this.width, this.machine.nozzleX, this.machine.w);
+    const dropX = rand(dropMin, dropMax);
 
     this.bonusBirds.push({
       x,
@@ -737,9 +743,25 @@ export class Game {
     this.audio.miss();
     this.#updateHud(false);
 
+    if (isLastChance(this.misses, this.maxMisses)) {
+      this.#showLastChanceWarn();
+    }
+
     if (this.misses >= this.maxMisses) {
       this.#endGame();
     }
+  }
+
+  #showLastChanceWarn() {
+    if (!this.lastChanceWarn) return;
+    this.lastChanceWarn.classList.remove("visible");
+    void this.lastChanceWarn.offsetWidth;
+    this.lastChanceWarn.classList.add("visible");
+  }
+
+  #hideLastChanceWarn() {
+    if (!this.lastChanceWarn) return;
+    this.lastChanceWarn.classList.remove("visible");
   }
 
   #queueNextBatch() {
@@ -756,17 +778,12 @@ export class Game {
       this.launchEvents.push({ at });
     }
 
-    const recovery = Math.max(1, 2.8 - this.batchIndex * 0.075);
+    const recovery = getBatchRecovery(this.batchIndex);
     this.nextBatchAt = at + recovery;
   }
 
   #getBatchRange(batchNumber) {
-    if (batchNumber === 1) return [2, 3];
-    if (batchNumber === 2) return [4, 5];
-    if (batchNumber === 3) return [8, 9];
-
-    const minCount = Math.min(28, 9 + Math.floor((batchNumber - 3) * 2.4));
-    return [minCount, minCount + 2];
+    return getBatchRange(batchNumber);
   }
 
   #spawnPopcorn() {

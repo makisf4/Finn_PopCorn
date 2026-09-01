@@ -1,3 +1,4 @@
+import { shouldShowBonusBirdAlert } from "./shared/gameplay.js";
 import { clamp } from "./utils.js";
 
 export class Renderer {
@@ -41,6 +42,10 @@ export class Renderer {
 
     for (const popcorn of scene.popcorns) {
       this.#drawPopcorn(popcorn);
+    }
+
+    for (const popcorn of scene.popcorns) {
+      this.#drawAssistCue(popcorn, scene.groundY);
     }
 
     for (const drop of scene.bonusDrops || []) {
@@ -346,6 +351,32 @@ export class Renderer {
     ctx.restore();
   }
 
+  #drawAssistCue(popcorn, groundY) {
+    const intensity = popcorn.assist || 0;
+    if (intensity <= 0.05) return;
+
+    const { ctx } = this;
+    const tickHeight = clamp(9 + intensity * 7, 9, 16);
+    const topY = groundY - tickHeight;
+    const halfW = Math.max(12, popcorn.r * 1.45);
+
+    ctx.save();
+    ctx.globalAlpha = 0.28 + intensity * 0.42;
+    ctx.strokeStyle = "#ffd95e";
+    ctx.lineWidth = Math.max(1.6, popcorn.r * 0.24);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(popcorn.x - halfW, topY);
+    ctx.lineTo(popcorn.x, groundY - 2);
+    ctx.lineTo(popcorn.x + halfW, topY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(popcorn.x, topY);
+    ctx.lineTo(popcorn.x, topY - 5);
+    ctx.stroke();
+    ctx.restore();
+  }
+
   #drawBonusBird(bird) {
     const { ctx } = this;
     const dir = bird.vx >= 0 ? 1 : -1;
@@ -386,6 +417,26 @@ export class Renderer {
     ctx.closePath();
     ctx.fill();
 
+    ctx.restore();
+
+    this.#drawBonusBirdAlert(bird);
+  }
+
+  #drawBonusBirdAlert(bird) {
+    if (!shouldShowBonusBirdAlert(bird)) return;
+
+    const { ctx } = this;
+    const y = bird.y - bird.h * 1.45;
+
+    ctx.save();
+    ctx.font = `bold ${Math.round(clamp(bird.h * 1.6, 18, 42))}px Georgia`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.lineWidth = Math.max(3, bird.h * 0.3);
+    ctx.strokeStyle = "rgba(4, 26, 48, 0.9)";
+    ctx.strokeText("!", bird.x, y);
+    ctx.fillStyle = "#ff4236";
+    ctx.fillText("!", bird.x, y);
     ctx.restore();
   }
 
