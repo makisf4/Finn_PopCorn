@@ -24,6 +24,15 @@ Fallback for static-only preview (without shared leaderboard API):
 python3 -m http.server 8080
 ```
 
+## Quality checks
+
+```bash
+npm test
+npm run check:syntax
+```
+
+The manual browser smoke-test matrix is in `docs/QA_BASELINE.md`.
+
 ## Vercel Shared Leaderboard Setup
 
 For shared leaderboard on the production URL, add a **Vercel KV** store to this project and expose:

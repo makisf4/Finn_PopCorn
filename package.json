@@ -1,0 +1,9 @@
+{
+  "name": "finn-popcorn",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check:syntax": "node --check src/audio.js && node --check src/game.js && node --check src/input.js && node --check src/main.js && node --check src/renderer.js && node --check src/utils.js && node --check server.mjs && node --check api/leaderboard.js && node --check tests/utils.test.js"
+  }
+}
