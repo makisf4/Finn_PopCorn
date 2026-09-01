@@ -406,6 +406,39 @@ body {
   justify-items: start;
 }
 
+.landing-hero-art {
+  justify-self: center;
+  width: min(58vw, 232px);
+  height: auto;
+  max-width: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 16px 26px rgba(4, 15, 45, 0.38));
+  animation: hero-art-enter 650ms ease-out both, hero-art-idle 5.6s ease-in-out 650ms
+    infinite alternate;
+}
+
+@keyframes hero-art-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes hero-art-idle {
+  from {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  to {
+    transform: translateY(-7px) rotate(-0.6deg);
+  }
+}
+
 .landing-copy {
   display: grid;
   gap: 18px;
@@ -727,6 +760,30 @@ body {
     left: 14px;
   }
 
+  .landing-hero {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "kicker art"
+      "title art";
+    align-items: center;
+    column-gap: clamp(20px, 3vw, 42px);
+  }
+
+  .landing-kicker {
+    grid-area: kicker;
+  }
+
+  .landing-hero h1 {
+    grid-area: title;
+  }
+
+  .landing-hero-art {
+    grid-area: art;
+    justify-self: end;
+    width: auto;
+    height: clamp(190px, 30vh, 320px);
+  }
+
   #controls {
     max-width: 540px;
     margin: 0 auto;
@@ -742,7 +799,8 @@ body {
 @media (prefers-reduced-motion: reduce) {
   #score-value.pop,
   #milestone-banner.visible p,
-  .hud-warning.visible {
+  .hud-warning.visible,
+  .landing-hero-art {
     animation: none;
   }
 
@@ -781,6 +839,11 @@ body {
   #app {
     gap: 8px;
     padding-top: 8px;
+  }
+
+  .landing-hero-art {
+    width: auto;
+    height: clamp(120px, 22vh, 170px);
   }
 
   .hud-pill,
