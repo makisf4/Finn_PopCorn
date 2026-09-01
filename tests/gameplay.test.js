@@ -11,7 +11,46 @@ import {
   COUNTDOWN_DURATION,
   MAX_RAMP_BATCH,
   getCountdownNumber,
+  getAwardedCatchPoints,
+  getComboMultiplier,
+  getDifficultyPreset,
+  DIFFICULTY_PRESETS,
+  DEFAULT_DIFFICULTY,
 } from "../src/shared/gameplay.js";
+
+describe("combo scoring", () => {
+  it("uses x1 initially and reaches each streak threshold", () => {
+    assert.equal(getComboMultiplier(0), 1);
+    assert.equal(getComboMultiplier(4), 1);
+    assert.equal(getComboMultiplier(5), 2);
+    assert.equal(getComboMultiplier(9), 2);
+    assert.equal(getComboMultiplier(10), 3);
+    assert.equal(getComboMultiplier(17), 3);
+    assert.equal(getComboMultiplier(18), 4);
+  });
+
+  it("multiplies catch points using the new streak count", () => {
+    assert.equal(getAwardedCatchPoints(5, 1), 5);
+    assert.equal(getAwardedCatchPoints(5, 5), 10);
+    assert.equal(getAwardedCatchPoints(7, 10), 21);
+    assert.equal(getAwardedCatchPoints(10, 18), 40);
+  });
+});
+
+describe("difficulty presets", () => {
+  it("defaults unknown saved values to Normal", () => {
+    assert.equal(getDifficultyPreset(undefined), DEFAULT_DIFFICULTY);
+    assert.equal(getDifficultyPreset("old-value"), DEFAULT_DIFFICULTY);
+  });
+
+  it("keeps one explicit table for trajectory, assist, and batch settings", () => {
+    assert.deepEqual(Object.keys(DIFFICULTY_PRESETS), ["easy", "normal", "hard"]);
+    assert.ok(DIFFICULTY_PRESETS.easy.flightTime[0] > DIFFICULTY_PRESETS.normal.flightTime[0]);
+    assert.ok(DIFFICULTY_PRESETS.hard.assistStrength < DIFFICULTY_PRESETS.normal.assistStrength);
+    assert.ok(getBatchRange(10, "easy")[1] < getBatchRange(10, "normal")[1]);
+    assert.deepEqual(getBatchRange(10, "normal"), [25, 27]);
+  });
+});
 
 describe("getCountdownNumber", () => {
   it("shows 3-2-1 followed by GO during the countdown", () => {

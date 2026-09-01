@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no"
     />
     <title>Finn The Dyno PopCorn King</title>
-    <link rel="stylesheet" href="./styles.css?v=20260901-3" />
+    <link rel="stylesheet" href="./styles.css?v=20260901-5" />
   </head>
   <body>
     <div id="app">
@@ -16,11 +16,19 @@
         <header id="hud">
           <div class="hud-pill" id="score-pill">
             <span class="label">Score</span>
-            <span id="score-value" class="value">0</span>
+            <span class="score-readout"><span id="score-value" class="value">0</span><span id="points-award" class="points-award" aria-live="polite"></span></span>
           </div>
           <div class="hud-pill" id="miss-pill">
             <span class="label">Misses</span>
             <span id="miss-value" class="value">0 / 3</span>
+          </div>
+      <div class="hud-pill combo-pill" id="combo-pill" aria-label="Catch combo multiplier" hidden>
+            <span class="label">Combo</span>
+            <span id="combo-value" class="value" aria-live="polite">×1</span>
+          </div>
+          <div class="hud-pill difficulty-pill" id="difficulty-pill" hidden>
+            <span class="label">Mode</span>
+            <span id="difficulty-value" class="value">Hard</span>
           </div>
           <button id="mute-btn" class="icon-btn" aria-label="Toggle sound" type="button">
             <span id="mute-icon">🔊</span>
@@ -68,9 +76,19 @@
                 <p id="name-error" class="name-error" aria-live="polite"></p>
               </div>
 
+              <div class="difficulty-choice">
+                <label for="difficulty-select">Difficulty</label>
+                <select id="difficulty-select" aria-describedby="difficulty-tip">
+                  <option value="easy">Easy</option>
+                  <option value="normal" selected>Normal</option>
+                  <option value="hard">Hard</option>
+                </select>
+                <p id="difficulty-tip" class="entry-tip">Normal is the standard challenge.</p>
+              </div>
+
               <button id="play-btn" class="primary-btn" type="button">Play Now</button>
 
-              <p class="launch-note">Scores are saved as nickname + score on the leaderboard.</p>
+              <p class="launch-note">Catch streaks multiply points. Scores are saved as nickname + score.</p>
 
               <section class="leaderboard">
                 <h3>Top Players</h3>
@@ -145,6 +163,6 @@
       </section>
     </div>
 
-    <script type="module" src="./src/main.js?v=20260901-4"></script>
+    <script type="module" src="./src/main.js?v=20260901-6"></script>
   </body>
 </html>

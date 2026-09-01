@@ -4,10 +4,15 @@ import { Renderer } from "./renderer.js?v=20260901-13";
 import {
   bonusDropXRange,
   COUNTDOWN_DURATION,
+  DEFAULT_DIFFICULTY,
+  DIFFICULTY_PRESETS,
+  getAwardedCatchPoints,
   getBatchRange,
   getBatchRecovery,
+  getComboMultiplier,
+  getDifficultyPreset,
   isLastChance,
-} from "./shared/gameplay.js?v=20260901-2";
+} from "./shared/gameplay.js?v=20260901-3";
 import { clamp, circleRectCollision, formatMisses, lerp, rand, randInt, smoothstep } from "./utils.js";
 
 export class Game {
@@ -15,6 +20,12 @@ export class Game {
     this.canvas = elements.canvas;
     this.scoreValue = elements.scoreValue;
     this.missValue = elements.missValue;
+    this.comboPill = elements.comboPill;
+    this.comboValue = elements.comboValue;
+    this.pointsAward = elements.pointsAward;
+    this.difficultyPill = elements.difficultyPill;
+    this.difficultyValue = elements.difficultyValue;
+    this.difficultySelect = elements.difficultySelect;
     this.startScreen = elements.startScreen;
     this.gameOverScreen = elements.gameOverScreen;
     this.pauseScreen = elements.pauseScreen;
@@ -62,6 +73,10 @@ export class Game {
     this.gameClock = 0;
     this.score = 0;
     this.misses = 0;
+    this.catchStreak = 0;
+    this.lastAwardedPoints = 0;
+    this.difficultyStorageKey = "finn_popcorn_difficulty_v1";
+    this.difficulty = this.#loadDifficulty();
     this.batchIndex = 0;
     this.gameOverElapsed = 0;
     this.gameOverFxTimer = 0;
@@ -197,6 +212,12 @@ export class Game {
       this.#showStartScreen();
     });
 
+    this.difficultySelect?.addEventListener("change", () => {
+      this.difficulty = getDifficultyPreset(this.difficultySelect.value);
+      this.#saveDifficulty();
+      this.#updateHud();
+    });
+
     const pause = () => {
       this.#unlockAudio();
       this.#togglePause();
@@ -289,6 +310,8 @@ export class Game {
     this.gameClock = 0;
     this.score = 0;
     this.misses = 0;
+    this.catchStreak = 0;
+    this.lastAwardedPoints = 0;
     this.batchIndex = 0;
     this.gameOverElapsed = 0;
     this.gameOverFxTimer = 0;
@@ -658,7 +681,8 @@ export class Game {
   }
 
   #handleBonusCatch(drop) {
-    this.score += drop.points || this.bonusLollipopPoints;
+    this.lastAwardedPoints = drop.points || this.bonusLollipopPoints;
+    this.score += this.lastAwardedPoints;
     this.dog.chewTimer = this.dog.chewDuration;
     this.audio.catch();
     this.audio.yeah();
@@ -697,6 +721,7 @@ export class Game {
 
   #applyAssist(popcorn, dt) {
     const distance = Math.abs(popcorn.x - this.dog.x);
+    const preset = DIFFICULTY_PRESETS[this.difficulty];
     const descending = popcorn.vy > 20;
     const inAssistBand = popcorn.y > this.height * 0.22 && popcorn.y < this.height * 0.86;
 
@@ -704,7 +729,7 @@ export class Game {
     if (descending && inAssistBand) {
       const distFactor = clamp((distance - this.dog.w * 0.75) / (this.width * 0.55), 0, 1);
       const heightFactor = smoothstep(this.height * 0.22, this.height * 0.82, popcorn.y);
-      targetAssist = clamp(distFactor * heightFactor * 1.08, 0, 1);
+      targetAssist = clamp(distFactor * heightFactor * preset.assistStrength, 0, 1);
       if (popcorn.y > this.height * 0.67) {
         targetAssist = Math.min(1, targetAssist + 0.12);
       }
@@ -725,7 +750,10 @@ export class Game {
   }
 
   #handleCatch(popcorn) {
-    const points = popcorn.points || 5;
+    this.catchStreak += 1;
+    const basePoints = popcorn.points || 5;
+    const points = getAwardedCatchPoints(basePoints, this.catchStreak);
+    this.lastAwardedPoints = points;
     this.score += points;
     this.dog.chewTimer = this.dog.chewDuration;
     const scoreFactor = clamp(points / 5, 1, 2.4);
@@ -765,6 +793,8 @@ export class Game {
 
   #handleMiss(popcorn) {
     this.misses += 1;
+    this.catchStreak = 0;
+    this.lastAwardedPoints = 0;
     this.shake = Math.max(this.shake, 8);
 
     this.#spawnParticles(popcorn.x, this.groundY - 5, {
@@ -821,7 +851,7 @@ export class Game {
   }
 
   #getBatchRange(batchNumber) {
-    return getBatchRange(batchNumber);
+    return getBatchRange(batchNumber, this.difficulty);
   }
 
   #spawnPopcorn() {
@@ -851,13 +881,17 @@ export class Game {
     const radius = clamp(this.width * 0.011, 7, 11) * variant.scale;
     const landingMin = this.width * 0.06;
     const landingMax = this.width * 0.84;
+    const preset = DIFFICULTY_PRESETS[this.difficulty];
 
     for (let attempt = 0; attempt < 40; attempt += 1) {
       const intensity = clamp((this.batchIndex - 1) * 0.03, 0, 0.22);
-      const flightTime = rand(2.75 - intensity * 0.22, 3.9 - intensity * 0.14);
+      const flightTime = rand(
+        preset.flightTime[0] - intensity * 0.22,
+        preset.flightTime[1] - intensity * 0.14
+      );
       const biasX = clamp(this.dog.x + rand(-this.width * 0.38, this.width * 0.38), landingMin, landingMax);
       const landingX = lerp(rand(landingMin, landingMax), biasX, 0.34);
-      const apexY = rand(this.height * 0.12, this.height * 0.36);
+      const apexY = rand(this.height * preset.apex[0], this.height * preset.apex[1]);
       const yEnd = this.groundY - rand(9, 14);
 
       const lift = startY - apexY;
@@ -978,12 +1012,48 @@ export class Game {
   #updateHud(scorePop = false) {
     this.scoreValue.textContent = String(this.score);
     this.missValue.textContent = formatMisses(this.misses, this.maxMisses);
+    const comboMultiplier = getComboMultiplier(this.catchStreak);
+    if (this.comboPill) {
+      this.comboPill.hidden = comboMultiplier === 1;
+    }
+    if (this.comboValue) {
+      this.comboValue.textContent = `×${comboMultiplier}`;
+    }
+    if (this.pointsAward) {
+      this.pointsAward.textContent = this.lastAwardedPoints > 0 ? `+${this.lastAwardedPoints}` : "";
+    }
+    if (this.difficultyPill && this.difficultyValue) {
+      this.difficultyPill.hidden = this.difficulty === DEFAULT_DIFFICULTY;
+      this.difficultyValue.textContent = DIFFICULTY_PRESETS[this.difficulty].label;
+    }
 
     if (scorePop) {
       this.scoreValue.classList.remove("pop");
       // Force style flush to restart animation.
       void this.scoreValue.offsetWidth;
       this.scoreValue.classList.add("pop");
+    }
+  }
+
+  #loadDifficulty() {
+    let stored = DEFAULT_DIFFICULTY;
+    try {
+      stored = localStorage.getItem(this.difficultyStorageKey) || DEFAULT_DIFFICULTY;
+    } catch {
+      stored = DEFAULT_DIFFICULTY;
+    }
+    const difficulty = getDifficultyPreset(stored);
+    if (this.difficultySelect) {
+      this.difficultySelect.value = difficulty;
+    }
+    return difficulty;
+  }
+
+  #saveDifficulty() {
+    try {
+      localStorage.setItem(this.difficultyStorageKey, this.difficulty);
+    } catch {
+      return;
     }
   }
 

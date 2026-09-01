@@ -1,4 +1,4 @@
-import { Game } from "./game.js?v=20260901-16";
+import { Game } from "./game.js?v=20260901-18";
 
 const byId = (id) => document.getElementById(id);
 
@@ -48,6 +48,12 @@ const game = new Game({
   canvas: byId("game-canvas"),
   scoreValue: byId("score-value"),
   missValue: byId("miss-value"),
+  comboPill: byId("combo-pill"),
+  comboValue: byId("combo-value"),
+  pointsAward: byId("points-award"),
+  difficultyPill: byId("difficulty-pill"),
+  difficultyValue: byId("difficulty-value"),
+  difficultySelect: byId("difficulty-select"),
   startScreen: byId("start-screen"),
   gameOverScreen: byId("game-over-screen"),
   pauseScreen: byId("pause-screen"),

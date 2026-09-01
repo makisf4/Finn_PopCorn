@@ -148,6 +148,24 @@ body {
   }
 }
 
+.score-readout {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.points-award {
+  min-width: 20px;
+  color: #d95f4b;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.combo-pill[hidden],
+.difficulty-pill[hidden] {
+  display: none;
+}
+
 .label {
   font-size: 0.86rem;
   opacity: 0.82;
@@ -533,6 +551,33 @@ body {
   margin: 0;
   display: grid;
   gap: 6px;
+}
+
+.difficulty-choice {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+}
+
+.difficulty-choice label {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: #183459;
+}
+
+#difficulty-select {
+  width: 100%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font: inherit;
+  color: #10243f;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+#difficulty-select:focus-visible {
+  outline: 3px solid rgba(255, 210, 86, 0.7);
+  outline-offset: 1px;
 }
 
 .player-entry label {
