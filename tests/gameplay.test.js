@@ -4,7 +4,6 @@ import {
   bonusDropXRange,
   getBatchRange,
   getBatchRecovery,
-  isLastChance,
   secondsToBonusDrop,
   shouldShowBonusBirdAlert,
   getAwardedCatchPoints,
@@ -138,17 +137,6 @@ describe("getBatchRecovery", () => {
       assert.ok(recovery >= 0.9, `batch ${batch} recovery ${recovery} below floor`);
       assert.ok(recovery <= 1.25, `batch ${batch} recovery ${recovery} creates a long pause`);
     }
-  });
-});
-
-describe("isLastChance", () => {
-  it("flags only the pre-final miss", () => {
-    assert.equal(isLastChance(2, 3), true);
-    assert.equal(isLastChance(1, 3), false);
-    assert.equal(isLastChance(0, 3), false);
-    assert.equal(isLastChance(3, 3), false);
-    assert.equal(isLastChance(4, 5), true);
-    assert.equal(isLastChance(3, 5), false);
   });
 });
 

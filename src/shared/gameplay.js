@@ -76,10 +76,6 @@ export function getBatchRange(batchNumber, difficulty = DEFAULT_DIFFICULTY) {
 
 export { getBatchRecovery, WAVE_PATTERNS, selectWavePattern };
 
-export function isLastChance(misses, maxMisses) {
-  return misses === maxMisses - 1;
-}
-
 export function secondsToBonusDrop(bird) {
   const speed = Math.abs(bird.vx);
   if (speed === 0 || bird.dropped) return Infinity;

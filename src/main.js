@@ -1,4 +1,4 @@
-import { Game } from "./game.js?v=20260903-31";
+import { Game } from "./game.js?v=20260903-32";
 
 const byId = (id) => document.getElementById(id);
 
@@ -59,7 +59,6 @@ const game = new Game({
   runMissesEl: byId("run-misses"),
   runWaveEl: byId("run-wave"),
   runCharacterEl: byId("run-character"),
-  lastChanceWarn: byId("last-chance-warn"),
   playerNameInput: byId("player-name"),
   nameError: byId("name-error"),
   leaderboardListStart: byId("leaderboard-list-start"),

@@ -1,6 +1,6 @@
-import { AudioManager } from "./audio.js?v=20260903-31";
-import { InputManager } from "./input.js?v=20260903-31";
-import { Renderer } from "./renderer.js?v=20260903-31";
+import { AudioManager } from "./audio.js?v=20260903-32";
+import { InputManager } from "./input.js?v=20260903-32";
+import { Renderer } from "./renderer.js?v=20260903-32";
 import {
   bonusDropXRange,
   ACTIVE_POPCORN_CAP,
@@ -14,13 +14,12 @@ import {
   getDifficultyPreset,
   getCountdownNumber,
   getScoreSpeedMultiplier,
-  isLastChance,
-} from "./shared/gameplay.js?v=20260903-31";
+} from "./shared/gameplay.js?v=20260903-32";
 import {
   resolveLandingRange,
   resolveZoneFraction,
   selectWavePattern,
-} from "./shared/waves.js?v=20260903-31";
+} from "./shared/waves.js?v=20260903-32";
 import {
   clamp,
   circleRectCollision,
@@ -35,14 +34,14 @@ import {
   normalizeName,
   isAllowedName,
   normalizeNameKey,
-} from "./shared/nickname.js?v=20260903-31";
-import { characterForId } from "./shared/characters.js?v=20260903-31";
+} from "./shared/nickname.js?v=20260903-32";
+import { characterForId } from "./shared/characters.js?v=20260903-32";
 import {
   computeCatchRect,
   computeEffectPoint,
   extendCatchRectToGround,
-} from "./shared/catch-region.js?v=20260903-31";
-import { trapFocus } from "./shared/focus.js?v=20260903-31";
+} from "./shared/catch-region.js?v=20260903-32";
+import { trapFocus } from "./shared/focus.js?v=20260903-32";
 
 export class Game {
   constructor(elements) {
@@ -86,7 +85,6 @@ export class Game {
     this.runWaveEl = elements.runWaveEl;
     this.runCharacterEl = elements.runCharacterEl;
     this.milestoneText = elements.milestoneText;
-    this.lastChanceWarn = elements.lastChanceWarn;
     this.playerNameInput = elements.playerNameInput;
     this.nameError = elements.nameError;
     this.leaderboardListStart = elements.leaderboardListStart;
@@ -426,7 +424,6 @@ export class Game {
     this.milestoneBannerTimer = 0;
     this.lastMilestoneScore = 0;
     this.#hideMilestoneBanner();
-    this.#hideLastChanceWarn();
     this.audio.resumeMusic();
 
     this.#resetDogPosition();
@@ -447,7 +444,6 @@ export class Game {
     this.bonusDrops.length = 0;
     this.milestoneBannerTimer = 0;
     this.#hideMilestoneBanner();
-    this.#hideLastChanceWarn();
     if (this.firstRunOverlay) this.firstRunOverlay.classList.remove("visible");
     this.#hidePauseOverlay();
     this.shake = Math.max(this.shake, 14);
@@ -532,7 +528,6 @@ export class Game {
     if (this.homeBtn) this.homeBtn.hidden = true;
     this.#clearNameError();
     this.#hideMilestoneBanner();
-    this.#hideLastChanceWarn();
     if (this.firstRunOverlay) this.firstRunOverlay.classList.remove("visible");
     this.milestoneBannerTimer = 0;
     this.gameOverElapsed = 0;
@@ -1123,28 +1118,11 @@ export class Game {
     this.audio.miss();
     this.#updateHud(false);
 
-    if (isLastChance(this.misses, this.maxMisses)) {
-      this.#showLastChanceWarn();
-      this.#announce("Miss! Last miss left.");
-    } else {
-      this.#announce(`Miss! ${formatMisses(this.misses, this.maxMisses)}`);
-    }
+    this.#announce(`Miss! ${formatMisses(this.misses, this.maxMisses)}`);
 
     if (this.misses >= this.maxMisses) {
       this.#endGame();
     }
-  }
-
-  #showLastChanceWarn() {
-    if (!this.lastChanceWarn) return;
-    this.lastChanceWarn.classList.remove("visible");
-    void this.lastChanceWarn.offsetWidth;
-    this.lastChanceWarn.classList.add("visible");
-  }
-
-  #hideLastChanceWarn() {
-    if (!this.lastChanceWarn) return;
-    this.lastChanceWarn.classList.remove("visible");
   }
 
   #queueNextBatch() {

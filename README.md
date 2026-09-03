@@ -68,7 +68,7 @@ WebGL/Three.js is the primary renderer (camera, perspective, lights, shadow map,
 
 - Pinch zoom and zoomable viewport work.
 - Dialogs (`Start`, `Pause`, `Quit`, `Game over`) use `role="dialog"`, `aria-modal`, focus trapping and focus restoration.
-- Live regions announce countdown, score changes, misses, pause/resume, game over and last-chance warnings.
+- Live regions announce countdown, score changes, misses, pause/resume, and game over.
 
 ## Leaderboard
 

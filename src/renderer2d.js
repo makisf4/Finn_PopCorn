@@ -2,13 +2,13 @@ import {
   COUNTDOWN_DURATION,
   getCountdownNumber,
   shouldShowBonusBirdAlert,
-} from "./shared/gameplay.js?v=20260903-31";
+} from "./shared/gameplay.js?v=20260903-32";
 import {
   createFacingState,
   pickRunFrame,
   updateFacing,
-} from "./shared/animation.js?v=20260903-31";
-import { clamp } from "./utils.js?v=20260903-31";
+} from "./shared/animation.js?v=20260903-32";
+import { clamp } from "./utils.js?v=20260903-32";
 
 export class Renderer2D {
   constructor(canvas) {
