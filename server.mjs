@@ -9,8 +9,12 @@ import {
   RATE_LIMIT_WINDOW_MS,
   createFixedWindowLimiter,
   getClientIp,
-  normalizeTimestamp,
+  isAllowedName,
+  normalizeEntries,
+  normalizeName,
+  normalizeNameKey,
   toRetryAfterSeconds,
+  validateRecord,
 } from "./src/shared/leaderboard-limits.cjs";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -21,25 +25,7 @@ const leaderboardFile = path.join(dataDir, "leaderboard.json");
 const host = process.env.HOST || "0.0.0.0";
 const port = Number(process.env.PORT || 8080);
 
-const MAX_ENTRIES = 10;
-const MAX_NAME_LENGTH = 10;
 const MAX_BODY_BYTES = 16_000;
-const BLOCKED_NAME_FRAGMENTS = [
-  "fuck",
-  "shit",
-  "bitch",
-  "cunt",
-  "dick",
-  "pussy",
-  "fucker",
-  "bastard",
-  "whore",
-  "slut",
-  "nigger",
-  "nigga",
-  "retard",
-  "motherfucker",
-];
 
 const contentTypes = {
   ".html": "text/html; charset=utf-8",
@@ -87,92 +73,6 @@ const sendText = (res, statusCode, message, extraHeaders = {}) => {
     ...extraHeaders,
   });
   res.end(message);
-};
-
-const normalizeName = (rawName) => {
-  if (typeof rawName !== "string") return "";
-  const collapsed = rawName.replace(/\s+/g, " ").trim();
-  return collapsed.slice(0, MAX_NAME_LENGTH).trim();
-};
-
-const normalizeNameKey = (name) => normalizeName(name).toLowerCase();
-
-const isAllowedName = (name) => {
-  if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(name)) return false;
-  const compact = name.toLowerCase().replace(/\s+/g, "");
-  return !BLOCKED_NAME_FRAGMENTS.some((fragment) => compact.includes(fragment));
-};
-
-const sanitizeEntries = (payload) => {
-  if (!Array.isArray(payload)) return [];
-
-  return payload
-    .map((entry) => ({
-      name: normalizeName(typeof entry.name === "string" ? entry.name : ""),
-      score: Number.isFinite(entry.score) ? Math.max(0, Math.floor(entry.score)) : 0,
-      ts: Number.isFinite(entry.ts) ? entry.ts : Date.now(),
-    }))
-    .filter((entry) => isAllowedName(entry.name));
-};
-
-const normalizeEntries = (entries) => {
-  const byPlayer = new Map();
-  for (const entry of sanitizeEntries(entries)) {
-    const key = normalizeNameKey(entry.name);
-    const existing = byPlayer.get(key);
-    if (!existing || entry.score > existing.score || (entry.score === existing.score && entry.ts < existing.ts)) {
-      byPlayer.set(key, entry);
-    }
-  }
-
-  return [...byPlayer.values()]
-    .sort((a, b) => b.score - a.score || a.ts - b.ts)
-    .slice(0, MAX_ENTRIES);
-};
-
-const applyRename = (entries, fromName, toName) => {
-  const fromKey = normalizeNameKey(fromName);
-  const toKey = normalizeNameKey(toName);
-  if (!fromKey || !toKey) return normalizeEntries(entries);
-
-  if (fromKey === toKey) {
-    return normalizeEntries(
-      entries.map((entry) =>
-        normalizeNameKey(entry.name) === toKey ? { ...entry, name: toName } : entry
-      )
-    );
-  }
-
-  const survivors = [];
-  const mergePool = [];
-  for (const entry of entries) {
-    const key = normalizeNameKey(entry.name);
-    if (key === fromKey || key === toKey) {
-      mergePool.push(entry);
-    } else {
-      survivors.push(entry);
-    }
-  }
-
-  if (mergePool.length === 0) {
-    return normalizeEntries(entries);
-  }
-
-  let winner = mergePool[0];
-  for (let i = 1; i < mergePool.length; i += 1) {
-    const candidate = mergePool[i];
-    if (candidate.score > winner.score || (candidate.score === winner.score && candidate.ts < winner.ts)) {
-      winner = candidate;
-    }
-  }
-
-  return normalizeEntries([
-    ...survivors,
-    {
-      ...winner,
-      name: toName,
-    },
-  ]);
 };
 
 const ensureLeaderboardFile = async () => {
@@ -268,35 +168,23 @@ const handleLeaderboard = async (req, res) => {
       }
     }
 
+    if (action !== "record") {
+      throw new Error("Unsupported leaderboard action");
+    }
+    const verdict = validateRecord(payload);
+    if (!verdict.ok) throw new Error(verdict.error);
+
     const entries = await queueWrite(async () => {
       const current = await readLeaderboard();
-
-      if (action === "rename") {
-        const fromName = normalizeName(typeof payload.fromName === "string" ? payload.fromName : "");
-        const toName = normalizeName(typeof payload.toName === "string" ? payload.toName : "");
-        if (!isAllowedName(fromName) || !isAllowedName(toName)) {
-          throw new Error("Invalid player name");
-        }
-        return writeLeaderboard(applyRename(current, fromName, toName));
-      }
-
-      if (action !== "record") {
-        throw new Error("Unsupported leaderboard action");
-      }
-
-      const name = normalizeName(typeof payload.name === "string" ? payload.name : "");
-      const score = Number.isFinite(payload.score) ? Math.max(0, Math.floor(payload.score)) : 0;
-      const ts = normalizeTimestamp(payload.ts);
-      if (!isAllowedName(name)) {
-        throw new Error("Invalid player name");
-      }
-      if (score <= 0) {
-        return current;
-      }
-
-      return writeLeaderboard([...current, { name, score, ts }]);
+      return writeLeaderboard([...current, verdict.entry]);
     }).catch((error) => {
-      if (error.message === "Invalid player name" || error.message === "Unsupported leaderboard action") {
+      if (
+        error.message === "Invalid player name"
+        || error.message === "Invalid score"
+        || error.message === "Invalid difficulty"
+        || error.message === "Implausible run data"
+        || error.message === "Unsupported leaderboard action"
+      ) {
         throw error;
       }
       throw error;
@@ -350,7 +238,10 @@ const serveStatic = async (res, url) => {
 
   const ext = path.extname(finalPath).toLowerCase();
   const contentType = contentTypes[ext] || "application/octet-stream";
-  const cacheControl = ext === ".html" ? "no-cache" : "public, max-age=3600";
+  // HTML/JS/CSS change often during dev and already carry cache-busting
+  // version query strings; force revalidation so stale code is never used.
+  const revalidate = new Set([".html", ".js", ".css"]);
+  const cacheControl = revalidate.has(ext) ? "no-cache" : "public, max-age=3600";
 
   res.writeHead(200, {
     "Content-Type": contentType,
@@ -381,11 +272,18 @@ const server = createServer(async (req, res) => {
       await handleLeaderboard(req, res);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Leaderboard API failure";
-      if (message === "Invalid player name" || message === "Unsupported leaderboard action") {
+      if (
+        message === "Invalid player name"
+        || message === "Invalid score"
+        || message === "Invalid difficulty"
+        || message === "Implausible run data"
+        || message === "Unsupported leaderboard action"
+      ) {
         sendText(res, 400, message);
         return;
       }
-      sendText(res, 500, message);
+      console.error("[Leaderboard] Request failed", error);
+      sendText(res, 500, "Leaderboard service unavailable");
     }
     return;
   }
@@ -394,5 +292,5 @@ const server = createServer(async (req, res) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`Finn server running at http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
+  console.info(`Finn server running at http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
 });

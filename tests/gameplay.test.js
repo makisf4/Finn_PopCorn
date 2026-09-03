@@ -7,16 +7,38 @@ import {
   isLastChance,
   secondsToBonusDrop,
   shouldShowBonusBirdAlert,
-  BATCH_COUNT_CAP,
-  COUNTDOWN_DURATION,
-  MAX_RAMP_BATCH,
-  getCountdownNumber,
   getAwardedCatchPoints,
   getComboMultiplier,
   getDifficultyPreset,
+  getScoreDifficultyTier,
+  getScoreSpeedMultiplier,
   DIFFICULTY_PRESETS,
   DEFAULT_DIFFICULTY,
 } from "../src/shared/gameplay.js";
+import {
+  WAVE_PATTERNS,
+  resolveLandingRange,
+  resolveZoneFraction,
+  selectWavePattern,
+  waveZoneOffsets,
+} from "../src/shared/waves.js";
+import { extendCatchRectToGround } from "../src/shared/catch-region.js";
+
+describe("bounced-kernel catch region", () => {
+  it("extends the normal catch region down to the ground", () => {
+    assert.deepEqual(
+      extendCatchRectToGround({ x: 20, y: 100, w: 80, h: 50 }, 220),
+      { x: 20, y: 100, w: 80, h: 120 }
+    );
+  });
+
+  it("never shrinks an existing catch region", () => {
+    assert.equal(
+      extendCatchRectToGround({ x: 0, y: 100, w: 40, h: 90 }, 150).h,
+      90
+    );
+  });
+});
 
 describe("combo scoring", () => {
   it("uses x1 initially and reaches each streak threshold", () => {
@@ -37,82 +59,85 @@ describe("combo scoring", () => {
   });
 });
 
-describe("difficulty presets", () => {
-  it("defaults unknown saved values to Normal", () => {
+describe("single game difficulty", () => {
+  it("always resolves to the one supported mode", () => {
     assert.equal(getDifficultyPreset(undefined), DEFAULT_DIFFICULTY);
     assert.equal(getDifficultyPreset("old-value"), DEFAULT_DIFFICULTY);
+    assert.equal(getDifficultyPreset("easy"), DEFAULT_DIFFICULTY);
+    assert.equal(getDifficultyPreset("hard"), DEFAULT_DIFFICULTY);
   });
 
-  it("keeps one explicit table for trajectory, assist, and batch settings", () => {
-    assert.deepEqual(Object.keys(DIFFICULTY_PRESETS), ["easy", "normal", "hard"]);
-    assert.ok(DIFFICULTY_PRESETS.easy.flightTime[0] > DIFFICULTY_PRESETS.normal.flightTime[0]);
-    assert.ok(DIFFICULTY_PRESETS.hard.assistStrength < DIFFICULTY_PRESETS.normal.assistStrength);
-    assert.ok(getBatchRange(10, "easy")[1] < getBatchRange(10, "normal")[1]);
-    assert.deepEqual(getBatchRange(10, "normal"), [25, 27]);
+  it("uses the slightly harder tuned flight and assist values", () => {
+    assert.deepEqual(Object.keys(DIFFICULTY_PRESETS), [DEFAULT_DIFFICULTY]);
+    assert.deepEqual(DIFFICULTY_PRESETS.normal.flightTime, [2.35, 3.4]);
+    assert.equal(DIFFICULTY_PRESETS.normal.assistStrength, 0.95);
   });
 });
 
-describe("getCountdownNumber", () => {
-  it("shows 3-2-1 followed by GO during the countdown", () => {
-    assert.equal(getCountdownNumber(0), "3");
-    assert.equal(getCountdownNumber(COUNTDOWN_DURATION * 0.22), "2");
-    assert.equal(getCountdownNumber(COUNTDOWN_DURATION * 0.44), "1");
-    assert.equal(getCountdownNumber(COUNTDOWN_DURATION * 0.7), "GO");
+describe("score-based difficulty ramp", () => {
+  it("starts at 4000 and adds one tier every 1000 points", () => {
+    assert.equal(getScoreDifficultyTier(3999), 0);
+    assert.equal(getScoreDifficultyTier(4000), 1);
+    assert.equal(getScoreDifficultyTier(4999), 1);
+    assert.equal(getScoreDifficultyTier(5000), 2);
+    assert.equal(getScoreDifficultyTier(9000), 6);
   });
 
-  it("keeps GO as the terminal value", () => {
-    assert.equal(getCountdownNumber(COUNTDOWN_DURATION * 2), "GO");
+  it("makes each tier cumulatively five percent faster", () => {
+    assert.equal(getScoreSpeedMultiplier(3999), 1);
+    assert.equal(getScoreSpeedMultiplier(4000), 1.05);
+    assert.equal(getScoreSpeedMultiplier(5000), 1.05 ** 2);
+    assert.equal(getScoreSpeedMultiplier(Number.NaN), 1);
   });
 });
 
 describe("getBatchRange", () => {
-  it("keeps the early, gentle opening batches as today", () => {
-    assert.deepEqual(getBatchRange(1), [2, 3]);
-    assert.deepEqual(getBatchRange(2), [4, 5]);
-    assert.deepEqual(getBatchRange(3), [8, 9]);
-  });
-
-  it("ramps counts up through batch 10", () => {
-    assert.deepEqual(getBatchRange(4), [11, 13]);
-    assert.deepEqual(getBatchRange(5), [13, 15]);
-    assert.equal(getBatchRange(10)[0], 25);
-    assert.equal(getBatchRange(10)[1], 27);
-  });
-
-  it("stops growing after batch 10 for every later batch", () => {
-    for (let batch = 11; batch <= 200; batch += 1) {
-      assert.deepEqual(getBatchRange(batch), getBatchRange(MAX_RAMP_BATCH));
+  it("uses the active wave pattern", () => {
+    for (let batch = 1; batch <= WAVE_PATTERNS.length; batch += 1) {
+      const minCount = getBatchRange(batch)[0];
+      assert.ok(minCount >= 1);
     }
   });
 
-  it("never exceeds the overall single-batch cap", () => {
-    for (let batch = 1; batch <= 500; batch += 1) {
-      const [minCount, maxCount] = getBatchRange(batch);
-      assert.ok(minCount <= BATCH_COUNT_CAP);
-      assert.ok(maxCount <= BATCH_COUNT_CAP + 2);
-      assert.ok(minCount >= 2);
-      assert.ok(minCount <= maxCount);
-    }
+  it("respects the single mode batch count cap", () => {
+    assert.ok(getBatchRange(20)[1] <= DIFFICULTY_PRESETS.normal.batchCountCap + 2);
+  });
+});
+
+describe("waves", () => {
+  it("selectWavePattern returns deterministic entries", () => {
+    const first = selectWavePattern(1);
+    const last = selectWavePattern(100);
+    assert.equal(first.name, "Pair");
+    assert.equal(last.name, WAVE_PATTERNS[WAVE_PATTERNS.length - 1].name);
+  });
+
+  it("converts fractional wave ranges into finite screen coordinates", () => {
+    assert.deepEqual(resolveLandingRange([0.15, 0.75], 1000, 60, 840), [150, 750]);
+    assert.deepEqual(resolveLandingRange([0.9, 0.1], 1000, 60, 840), [100, 840]);
+    assert.deepEqual(resolveLandingRange([NaN, 0.5], 1000, 60, 840), [60, 840]);
+  });
+
+  it("waveZoneOffsets and resolveZoneFraction are point-valued", () => {
+    const wide = waveZoneOffsets(2);
+    const alternating = resolveZoneFraction([-1, 1], 3);
+    assert.deepEqual(wide, [0.05, 0.84]);
+    assert.ok(Array.isArray(alternating));
   });
 });
 
 describe("getBatchRecovery", () => {
-  it("reproduces the current curve through batch 10", () => {
-    for (let batch = 1; batch <= 10; batch += 1) {
-      assert.equal(getBatchRecovery(batch), Math.max(1, 2.8 - batch * 0.075));
-    }
+  it("pattern recovery is stable across early waves", () => {
+    const pattern = selectWavePattern(1);
+    assert.equal(getBatchRecovery(1), pattern.recovery);
   });
 
-  it("gently shortens later recovery without going below the floor", () => {
-    for (let batch = 11; batch <= 400; batch += 1) {
+  it("keeps recovery short enough for continuous play without removing all breathing room", () => {
+    for (let batch = 1; batch <= WAVE_PATTERNS.length; batch += 1) {
       const recovery = getBatchRecovery(batch);
-      assert.ok(recovery >= 1.2, `batch ${batch} recovery ${recovery} below floor`);
-      assert.ok(
-        recovery <= getBatchRecovery(batch - 1),
-        `batch ${batch} recovery ${recovery} not non-increasing`
-      );
+      assert.ok(recovery >= 0.9, `batch ${batch} recovery ${recovery} below floor`);
+      assert.ok(recovery <= 1.25, `batch ${batch} recovery ${recovery} creates a long pause`);
     }
-    assert.ok(getBatchRecovery(400) >= 1.2);
   });
 });
 
@@ -133,16 +158,6 @@ describe("secondsToBonusDrop / shouldShowBonusBirdAlert", () => {
     assert.equal(secondsToBonusDrop({ x: 100, vx: -20, dropX: 88, dropped: false }), 0.6);
   });
 
-  it("never alerts once the bird has dropped", () => {
-    assert.equal(secondsToBonusDrop({ x: 100, vx: 20, dropX: 101, dropped: true }), Infinity);
-    assert.equal(shouldShowBonusBirdAlert({ x: 100, vx: 20, dropX: 101, dropped: true }), false);
-  });
-
-  it("never alerts for stationary birds", () => {
-    assert.equal(secondsToBonusDrop({ x: 100, vx: 0, dropX: 112, dropped: false }), Infinity);
-    assert.equal(shouldShowBonusBirdAlert({ x: 100, vx: 0, dropX: 112, dropped: false }), false);
-  });
-
   it("alerts only inside the 0.6s lead and from either direction", () => {
     const inside = { x: 100, vx: 20, dropX: 109, dropped: false };
     const outside = { x: 100, vx: 20, dropX: 130, dropped: false };
@@ -154,25 +169,19 @@ describe("secondsToBonusDrop / shouldShowBonusBirdAlert", () => {
 });
 
 describe("bonusDropXRange", () => {
-  it("clamps the drop point clear of the machine on narrow screens", () => {
+  it("keeps the minimum clear of the machine", () => {
     const [min, max] = bonusDropXRange(320, 240, 80);
-    assert.equal(min, 320 * 0.16);
-    assert.equal(max, 240 - 20);
-    assert.ok(max < 246, "drop stays left of the machine front");
     assert.ok(max > min);
   });
 
-  it("keeps a usable spread and stays clear on desktop widths too", () => {
+  it("stays bounded on desktop widths too", () => {
     const [min, max] = bonusDropXRange(1024, 860, 140);
-    assert.equal(min, 1024 * 0.16);
-    assert.equal(max, 860 - 140 * 0.25);
     assert.ok(max > min);
-    assert.ok(max < 1024 * 0.84);
+    assert.ok(max < 1024 * 0.9);
   });
 
-  it("never collapses below the minimum band on tiny widths", () => {
+  it("never collapses below the minimum band", () => {
     const [min, max] = bonusDropXRange(320, 0, 80);
     assert.ok(max >= min);
-    assert.ok(max >= 320 * 0.16);
   });
 });

@@ -1,3 +1,12 @@
+export function isTypingTarget(target) {
+  if (!target || typeof target !== "object") return false;
+  const tagName = typeof target.tagName === "string" ? target.tagName.toLowerCase() : "";
+  return tagName === "input"
+    || tagName === "textarea"
+    || tagName === "select"
+    || target.isContentEditable === true;
+}
+
 export class InputManager {
   constructor({ leftBtn, rightBtn, onUiClick }) {
     this.left = false;
@@ -26,23 +35,33 @@ export class InputManager {
 
   #bindKeyboard() {
     window.addEventListener("keydown", (event) => {
-      if (event.code === "ArrowLeft") {
+      if (isTypingTarget(event.target)) return;
+      const isLeft = event.code === "ArrowLeft" || event.code === "KeyA";
+      const isRight = event.code === "ArrowRight" || event.code === "KeyD";
+      if (isLeft) {
         this.left = true;
+        this.leftBtn.classList.add("active");
         event.preventDefault();
       }
-      if (event.code === "ArrowRight") {
+      if (isRight) {
         this.right = true;
+        this.rightBtn.classList.add("active");
         event.preventDefault();
       }
     });
 
     window.addEventListener("keyup", (event) => {
-      if (event.code === "ArrowLeft") {
+      if (isTypingTarget(event.target)) return;
+      const isLeft = event.code === "ArrowLeft" || event.code === "KeyA";
+      const isRight = event.code === "ArrowRight" || event.code === "KeyD";
+      if (isLeft) {
         this.left = false;
+        this.leftBtn.classList.remove("active");
         event.preventDefault();
       }
-      if (event.code === "ArrowRight") {
+      if (isRight) {
         this.right = false;
+        this.rightBtn.classList.remove("active");
         event.preventDefault();
       }
     });

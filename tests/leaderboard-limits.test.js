@@ -8,8 +8,12 @@ import {
   TIMESTAMP_MAX_SKEW_MS,
   createFixedWindowLimiter,
   getClientIp,
+  isAllowedName,
+  normalizeEntries,
+  normalizeName,
   normalizeTimestamp,
   toRetryAfterSeconds,
+  validateRecord,
 } from "../src/shared/leaderboard-limits.cjs";
 
 describe("leaderboard limit constants", () => {
@@ -58,7 +62,7 @@ describe("normalizeTimestamp", () => {
 
 describe("createFixedWindowLimiter", () => {
   it("allows up to the limit in one window and blocks the rest", () => {
-    let at = 0;
+    const at = 0;
     const limiter = createFixedWindowLimiter({ windowMs: 600_000, limit: 3, now: () => at });
 
     assert.deepEqual(limiter.consume("a"), { allowed: true, remaining: 2, retryAfterMs: 0 });
@@ -144,5 +148,72 @@ describe("getClientIp", () => {
     assert.equal(getClientIp(undefined, undefined), "unknown");
     assert.equal(getClientIp(undefined, {}), "unknown");
     assert.equal(getClientIp("", null), "unknown");
+  });
+});
+
+describe("shared leaderboard policy", () => {
+  const now = Date.parse("2026-09-03T12:00:00.000Z");
+
+  it("accepts Unicode letter-only names and rejects markup and digits", () => {
+    assert.equal(normalizeName("  Θοδωρής   Παπ  "), "Θοδωρής Πα");
+    assert.equal(isAllowedName("Φίλης"), true);
+    assert.equal(isAllowedName("Finn1"), false);
+    assert.equal(isAllowedName("<script>"), false);
+  });
+
+  it("keeps one best score per player", () => {
+    const entries = normalizeEntries([
+      { name: "Finn", score: 50, difficulty: "easy", ts: now },
+      { name: "finn", score: 40, difficulty: "easy", ts: now + 1 },
+      { name: "Finn", score: 30, difficulty: "hard", ts: now + 2 },
+    ], now);
+    assert.deepEqual(entries.map(({ score, difficulty }) => ({ score, difficulty })), [
+      { score: 50, difficulty: "normal" },
+    ]);
+  });
+
+  it("accepts plausible run metadata", () => {
+    const verdict = validateRecord({
+      name: "Φίλης",
+      score: 180,
+      difficulty: "normal",
+      duration: 42,
+      catches: 8,
+      misses: 3,
+      bestCombo: 5,
+      ts: now,
+    }, now);
+    assert.equal(verdict.ok, true);
+    assert.deepEqual(verdict.entry, {
+      name: "Φίλης",
+      score: 180,
+      difficulty: "normal",
+      ts: now,
+    });
+  });
+
+  it("rejects invalid difficulty and implausible run metadata", () => {
+    assert.deepEqual(validateRecord({ name: "Finn", score: 10, difficulty: "nightmare" }, now), {
+      ok: false,
+      error: "Invalid difficulty",
+    });
+    assert.deepEqual(validateRecord({
+      name: "Finn",
+      score: 999999,
+      difficulty: "normal",
+      duration: 2,
+      catches: 1,
+      misses: 0,
+      bestCombo: 1,
+    }, now), {
+      ok: false,
+      error: "Implausible run data",
+    });
+  });
+
+  it("accepts legacy records without telemetry as normal difficulty", () => {
+    const verdict = validateRecord({ name: "Finn", score: 25 }, now);
+    assert.equal(verdict.ok, true);
+    assert.equal(verdict.entry.difficulty, "normal");
   });
 });

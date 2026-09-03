@@ -1,9 +1,17 @@
 {
   "name": "finn-popcorn",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "check:syntax": "node --check src/audio.js && node --check src/game.js && node --check src/input.js && node --check src/main.js && node --check src/renderer.js && node --check src/utils.js && node --check src/shared/gameplay.js && node --check src/shared/leaderboard-limits.cjs && node --check server.mjs && node --check api/leaderboard.js && node --check tests/utils.test.js && node --check tests/gameplay.test.js && node --check tests/leaderboard-limits.test.js"
+    "lint": "eslint .",
+    "test:assets": "node scripts/check-assets.mjs",
+    "check:cache-version": "node scripts/check-cache-version.mjs",
+    "check:syntax": "node --check src/audio.js && node --check src/game.js && node --check src/input.js && node --check src/main.js && node --check src/renderer.js && node --check src/renderer2d.js && node --check src/renderer3d.js && node --check src/utils.js && node --check src/entities3d/background3d.js && node --check src/entities3d/machine3d.js && node --check src/entities3d/popcorn3d.js && node --check src/entities3d/character-sprite3d.js && node --check src/entities3d/dog3d.js && node --check src/entities3d/dyno3d.js && node --check src/entities3d/bonus3d.js && node --check src/entities3d/particles3d.js && node --check src/entities3d/overlay2d.js && node --check src/entities3d/scorefloaters3d.js && node --check src/entities3d/dustmotes3d.js && node --check src/shared/gameplay.js && node --check src/shared/animation.js && node --check src/shared/characters.js && node --check src/shared/nickname.js && node --check src/shared/leaderboard-limits.cjs && node --check server.mjs && node --check api/leaderboard.js && node --check tests/utils.test.js && node --check tests/gameplay.test.js && node --check tests/leaderboard-limits.test.js && node --check tests/leaderboard-api.test.js && node --check tests/input.test.js && node --check tests/animation.test.js"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.9.1"
   }
 }

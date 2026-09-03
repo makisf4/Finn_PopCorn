@@ -4,10 +4,10 @@
     <meta charset="UTF-8" />
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>Finn The Dyno PopCorn King</title>
-    <link rel="stylesheet" href="./styles.css?v=20260901-7" />
+    <link rel="stylesheet" href="./styles.css?v=20260903-31" />
   </head>
   <body>
     <div id="app">
@@ -26,77 +26,86 @@
             <span class="label">Combo</span>
             <span id="combo-value" class="value" aria-live="polite">×1</span>
           </div>
-          <div class="hud-pill difficulty-pill" id="difficulty-pill" hidden>
-            <span class="label">Mode</span>
-            <span id="difficulty-value" class="value">Hard</span>
-          </div>
-          <button id="mute-btn" class="icon-btn" aria-label="Toggle sound" type="button">
-            <span id="mute-icon">🔊</span>
-          </button>
-          <button id="pause-btn" class="icon-btn" aria-label="Pause game" type="button">
-            <span id="pause-icon">Ⅱ</span>
-          </button>
-          <div id="volume-wrap" class="hud-volume">
-            <label for="volume-slider">Volume</label>
-            <input id="volume-slider" type="range" min="0" max="100" step="1" value="72" />
-            <span id="volume-value">72%</span>
-          </div>
+          <button id="pause-btn" class="hud-action-btn" aria-label="Pause game" type="button">Pause</button>
+          <button id="home-btn" class="hud-action-btn" type="button" aria-label="Quit current game and return home" hidden>Home</button>
           <div id="last-chance-warn" class="hud-warning" aria-live="polite">
             Last miss - catch everything!
           </div>
         </header>
 
-        <section id="start-screen" class="overlay visible" aria-label="Start screen">
+        <section id="start-screen" class="overlay visible" aria-label="Start screen" role="dialog" aria-modal="true">
           <div class="landing-shell">
-            <div class="landing-hero">
-              <p class="landing-kicker">Arcade dinosaur action</p>
-              <h1>Finn The Dyno PopCorn King</h1>
+            <header class="landing-hero">
+              <div class="landing-title">
+                <p class="landing-kicker">Popcorn-catching arcade</p>
+                <h1>Finn The Dyno PopCorn King</h1>
+                <p class="landing-lede">Pick Finn, catch every kernel, and keep your streak alive.</p>
+              </div>
               <img
                 class="landing-hero-art"
-                src="./assets/sprites/finn-popcorn-hero.png"
+                src="./assets/sprites/finn-popcorn-hero.webp"
                 alt="Finn the friendly green dinosaur joyfully juggling popcorn"
                 width="1214"
                 height="1295"
                 decoding="async"
               />
-            </div>
+            </header>
 
             <aside class="landing-panel" aria-label="Start game panel">
               <div class="landing-panel-header">
                 <p class="panel-eyebrow">Ready to play?</p>
-                <h2>Start your next run</h2>
+                <h2>Set up your run</h2>
               </div>
 
-              <div class="player-entry">
-                <label for="player-name">Nickname</label>
-                <input
-                  id="player-name"
-                  type="text"
-                  maxlength="10"
-                  pattern="[A-Za-z ]{1,10}"
-                  autocomplete="off"
-                  autocapitalize="off"
-                  spellcheck="false"
-                  aria-describedby="nickname-tip"
-                  placeholder="Choose a nickname"
-                />
-                <p id="nickname-tip" class="entry-tip">Do not use your real name.</p>
-                <p id="name-error" class="name-error" aria-live="polite"></p>
+              <div class="setup-fields">
+                <div class="player-entry">
+                  <label for="player-name">Nickname</label>
+                  <input
+                    id="player-name"
+                    type="text"
+                    maxlength="10"
+                    autocomplete="off"
+                    autocapitalize="off"
+                    spellcheck="false"
+                    aria-describedby="nickname-tip"
+                    placeholder="Choose a nickname"
+                  />
+                  <p id="nickname-tip" class="entry-tip">Max 10 characters.</p>
+                  <p id="name-error" class="name-error" aria-live="polite"></p>
+                </div>
+
               </div>
 
-              <div class="difficulty-choice">
-                <label for="difficulty-select">Difficulty</label>
-                <select id="difficulty-select" aria-describedby="difficulty-tip">
-                  <option value="easy">Easy</option>
-                  <option value="normal" selected>Normal</option>
-                  <option value="hard">Hard</option>
-                </select>
-                <p id="difficulty-tip" class="entry-tip">Normal is the standard challenge.</p>
+              <div class="character-choice" role="radiogroup" aria-label="Choose Finn's character">
+                  <span class="character-choice-label">Character</span>
+                  <p class="character-cosmetic-note">Character choice is cosmetic.</p>
+                  <div class="character-options">
+                    <label class="character-option">
+                      <input type="radio" name="character" value="dog" checked />
+                      <span class="character-card">
+                        <img src="./assets/sprites/finn-dog-3d.webp" alt="" width="768" height="512" />
+                        <span class="character-card-copy">
+                          <span class="character-name">Dog</span>
+                          <span class="character-desc">Fast, furry Finn</span>
+                        </span>
+                      </span>
+                    </label>
+                    <label class="character-option">
+                      <input type="radio" name="character" value="dyno" />
+                      <span class="character-card">
+                        <img src="./assets/sprites/finn-dyno-3d.webp" alt="" width="768" height="512" />
+                        <span class="character-card-copy">
+                          <span class="character-name">Dinosaur</span>
+                          <span class="character-desc">The original Dyno</span>
+                        </span>
+                      </span>
+                    </label>
+                  </div>
               </div>
 
               <button id="play-btn" class="primary-btn" type="button">Play Now</button>
 
-              <p class="launch-note">Catch streaks multiply points. Scores are saved as nickname + score.</p>
+              <p class="launch-note">Catch streaks multiply points. Three misses end the run.</p>
 
               <section class="leaderboard">
                 <h3>Top Players</h3>
@@ -104,65 +113,70 @@
               </section>
             </aside>
 
-            <section class="landing-copy" aria-label="Game introduction">
-              <p class="landing-lede">
-                Dash under wild popcorn shots, grab bonus candy from passing birds, and keep the
-                floor clean for as long as you can.
-              </p>
-
-              <div class="landing-highlights" aria-label="Game highlights">
-                <article class="feature-card">
-                  <strong>Fast rounds</strong>
-                  <span>Three misses and the run is over.</span>
-                </article>
-                <article class="feature-card">
-                  <strong>Bonus drops</strong>
-                  <span>Catch lollipops for extra points.</span>
-                </article>
-                <article class="feature-card">
-                  <strong>Pick-up play</strong>
-                  <span>Works with keyboard, mouse, or touch.</span>
-                </article>
-              </div>
-
-              <div class="landing-rules" aria-label="How to play">
-                <div class="rule-pill">
-                  <span class="rule-label">Move</span>
-                  <span class="rule-value">Arrow keys or on-screen buttons</span>
-                </div>
-                <div class="rule-pill">
-                  <span class="rule-label">Goal</span>
-                  <span class="rule-value">Catch popcorn before it hits the floor</span>
-                </div>
-                <div class="rule-pill">
-                  <span class="rule-label">Survive</span>
-                  <span class="rule-value">Exactly 3 misses per run</span>
-                </div>
-              </div>
+            <section class="quick-guide" aria-label="How to play">
+              <span><strong>Move</strong> Arrow keys or touch</span>
+              <span><strong>Catch</strong> Popcorn and bonus candy</span>
+              <span><strong>Survive</strong> Keep misses below three</span>
             </section>
           </div>
         </section>
 
-        <section id="game-over-screen" class="overlay" aria-label="Game over screen">
-          <h2>Game Over</h2>
-          <p id="final-score">Final Score: 0</p>
-          <button id="restart-btn" class="primary-btn" type="button">Restart</button>
-          <section class="leaderboard">
-            <h3>Leaderboard</h3>
-            <ol id="leaderboard-list-over"></ol>
-          </section>
+        <section id="game-over-screen" class="overlay" aria-label="Game over screen" role="dialog" aria-modal="true">
+          <div class="game-over-card">
+            <header class="game-over-header">
+              <p class="game-over-kicker">Run complete</p>
+              <h2>Game Over</h2>
+              <p id="final-score">Final Score: 0</p>
+            </header>
+
+            <div class="game-over-body">
+              <div id="run-stats" class="run-stats" role="group" aria-label="Run statistics">
+                <h3>Run summary</h3>
+                <dl>
+                  <div class="run-stat"><dt>Popcorn caught</dt><dd id="run-caught">0</dd></div>
+                  <div class="run-stat"><dt>Best combo</dt><dd id="run-best-combo">0</dd></div>
+                  <div class="run-stat"><dt>Misses</dt><dd id="run-misses">0</dd></div>
+                  <div class="run-stat"><dt>Wave reached</dt><dd id="run-wave">Pair</dd></div>
+                  <div class="run-stat"><dt>Run time</dt><dd id="run-time">0.0s</dd></div>
+                  <div class="run-stat"><dt>Character</dt><dd id="run-character">Dog</dd></div>
+                </dl>
+              </div>
+
+              <section class="leaderboard game-over-leaderboard">
+                <h3>Leaderboard</h3>
+                <ol id="leaderboard-list-over"></ol>
+              </section>
+            </div>
+
+            <div class="game-over-actions">
+              <button id="restart-btn" class="primary-btn" type="button">Play Again</button>
+              <button id="home-end-btn" class="secondary-btn" type="button">Home</button>
+            </div>
+          </div>
         </section>
 
         <section id="milestone-banner" class="overlay banner" aria-live="polite">
           <p id="milestone-text">Keep it up...</p>
         </section>
 
-        <section id="pause-screen" class="overlay pause-overlay" aria-live="polite" aria-label="Game paused">
+        <section id="pause-screen" class="overlay pause-overlay" aria-live="polite" aria-label="Game paused" role="dialog" aria-modal="true">
           <h2>Paused</h2>
           <p>Press Space or select Resume to continue</p>
           <button id="resume-btn" class="primary-btn" type="button">Resume</button>
+          <button id="pause-end-btn" class="secondary-btn" type="button">Home</button>
         </section>
-        <div id="game-announcer" class="sr-only" role="status" aria-live="assertive" aria-atomic="true"></div>
+        <section id="quit-confirm" class="overlay quit-confirm" aria-label="Quit run?" role="dialog" aria-modal="true">
+          <h2>End your run?</h2>
+          <p>Your current run will end.</p>
+          <div class="confirm-actions">
+            <button id="quit-cancel-btn" class="secondary-btn" type="button">Continue</button>
+            <button id="quit-ok-btn" class="primary-btn" type="button">Quit to Home</button>
+          </div>
+        </section>
+        <section id="first-run-overlay" class="overlay first-run" role="status" aria-live="polite" aria-label="How to move">
+          <p id="first-run-text">Use ← / → or A / D to move. Catch the popcorn!</p>
+        </section>
+        <div id="game-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
       </main>
 
       <section id="controls" aria-label="Movement controls">
@@ -171,6 +185,14 @@
       </section>
     </div>
 
-    <script type="module" src="./src/main.js?v=20260901-10"></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "./vendor/three/build/three.module.min.js",
+          "three/addons/": "./vendor/three/examples/jsm/"
+        }
+      }
+    </script>
+    <script type="module" src="./src/main.js?v=20260903-31"></script>
   </body>
 </html>

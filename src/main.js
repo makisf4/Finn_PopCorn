@@ -1,27 +1,14 @@
-import { Game } from "./game.js?v=20260901-22";
+import { Game } from "./game.js?v=20260903-31";
 
 const byId = (id) => document.getElementById(id);
 
 const blockMobileZoomGestures = () => {
+  // Only restrict zoom gestures over movement controls; pinch zoom works on the page.
   const preventIfCancelable = (event) => {
     if (event.cancelable) {
       event.preventDefault();
     }
   };
-
-  ["gesturestart", "gesturechange", "gestureend"].forEach((eventName) => {
-    window.addEventListener(eventName, preventIfCancelable, { passive: false });
-  });
-
-  window.addEventListener(
-    "touchmove",
-    (event) => {
-      if (event.touches.length > 1) {
-        preventIfCancelable(event);
-      }
-    },
-    { passive: false }
-  );
 
   let lastTouchEnd = 0;
   window.addEventListener(
@@ -34,7 +21,7 @@ const blockMobileZoomGestures = () => {
 
       const target = event.target;
       if (!(target instanceof HTMLElement)) return;
-      if (target.closest("#controls, #game-shell")) {
+      if (target.closest("#controls")) {
         preventIfCancelable(event);
       }
     },
@@ -45,31 +32,33 @@ const blockMobileZoomGestures = () => {
 blockMobileZoomGestures();
 
 const game = new Game({
+  hud: byId("hud"),
+  controls: byId("controls"),
   canvas: byId("game-canvas"),
   scoreValue: byId("score-value"),
   missValue: byId("miss-value"),
   comboPill: byId("combo-pill"),
   comboValue: byId("combo-value"),
   pointsAward: byId("points-award"),
-  difficultyPill: byId("difficulty-pill"),
-  difficultyValue: byId("difficulty-value"),
-  difficultySelect: byId("difficulty-select"),
   startScreen: byId("start-screen"),
   gameOverScreen: byId("game-over-screen"),
   pauseScreen: byId("pause-screen"),
   pauseBtn: byId("pause-btn"),
   resumeBtn: byId("resume-btn"),
-  pauseIcon: byId("pause-icon"),
   gameAnnouncer: byId("game-announcer"),
   playBtn: byId("play-btn"),
   restartBtn: byId("restart-btn"),
   finalScore: byId("final-score"),
-  muteBtn: byId("mute-btn"),
-  muteIcon: byId("mute-icon"),
-  volumeSlider: byId("volume-slider"),
-  volumeValue: byId("volume-value"),
+  homeBtn: byId("home-btn"),
   milestoneBanner: byId("milestone-banner"),
   milestoneText: byId("milestone-text"),
+  homeEndBtn: byId("home-end-btn"),
+  runTimeEl: byId("run-time"),
+  runCaughtEl: byId("run-caught"),
+  runBestComboEl: byId("run-best-combo"),
+  runMissesEl: byId("run-misses"),
+  runWaveEl: byId("run-wave"),
+  runCharacterEl: byId("run-character"),
   lastChanceWarn: byId("last-chance-warn"),
   playerNameInput: byId("player-name"),
   nameError: byId("name-error"),
@@ -77,6 +66,12 @@ const game = new Game({
   leaderboardListOver: byId("leaderboard-list-over"),
   leftBtn: byId("left-btn"),
   rightBtn: byId("right-btn"),
+  pauseEndBtn: byId("pause-end-btn"),
+  quitConfirmEl: byId("quit-confirm"),
+  quitConfirmOk: byId("quit-ok-btn"),
+  quitConfirmCancel: byId("quit-cancel-btn"),
+  firstRunOverlay: byId("first-run-overlay"),
+  firstRunText: byId("first-run-text"),
 });
 
 window.finnPopcornGame = game;

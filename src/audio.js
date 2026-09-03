@@ -11,12 +11,11 @@ export class AudioManager {
     this.musicTimer = null;
     this.musicStep = 0;
     this.volume = 0.72;
+    this.sfxVolume = 1;
     this.masterGainBase = 0.56;
     this.musicGainBase = 0.31;
     this.musicStopped = false;
     this.intensity = 0;
-    this.settingsStorageKey = "finn_popcorn_audio_v1";
-    this.#loadPersistedSettings();
     this.musicPattern = {
       tempo: 300,
       tempoMs: 200,
@@ -59,13 +58,25 @@ export class AudioManager {
       this.masterGain = this.ctx.createGain();
       this.musicGain = this.ctx.createGain();
       this.sfxGain = this.ctx.createGain();
+      this.sfxVolume = 1;
 
       this.masterGain.gain.value = this.#targetMasterGain();
       this.musicGain.gain.value = this.#targetMusicGain();
-      this.sfxGain.gain.value = 0.95;
+      this.sfxGain.gain.value = this.sfxVolume;
 
       this.musicGain.connect(this.masterGain);
       this.sfxGain.connect(this.masterGain);
+      this.masterGain.connect(this.ctx.destination);
+
+      this.compressor = this.ctx.createDynamicsCompressor();
+      this.compressor.threshold.value = -14;
+      this.compressor.ratio.value = 6;
+      this.musicGain.disconnect(this.masterGain);
+      this.sfxGain.disconnect(this.masterGain);
+      this.masterGain.disconnect();
+      this.musicGain.connect(this.compressor);
+      this.sfxGain.connect(this.compressor);
+      this.compressor.connect(this.masterGain);
       this.masterGain.connect(this.ctx.destination);
     }
 
@@ -79,23 +90,6 @@ export class AudioManager {
     }
   }
 
-  toggleMute() {
-    this.muted = !this.muted;
-    this.#applyMasterGain();
-    this.#persistSettings();
-    return this.muted;
-  }
-
-  setVolume(normalizedVolume) {
-    this.volume = clamp(normalizedVolume, 0, 1);
-    if (this.volume > 0 && this.muted) {
-      this.muted = false;
-    }
-    this.#applyMasterGain();
-    this.#persistSettings();
-    return this.volume;
-  }
-
   setIntensity(level) {
     const next = clamp(Number(level) || 0, 0, 1);
     if (next === this.intensity) return;
@@ -105,17 +99,12 @@ export class AudioManager {
 
   handleVisibilityChange() {
     if (!this.started || !this.ctx) return;
-    if (document.visibilityState !== "visible") return;
-    if (this.ctx.state !== "suspended") return;
-    this.ctx.resume().catch(() => {});
-  }
-
-  getVolume() {
-    return this.volume;
-  }
-
-  isMuted() {
-    return this.muted;
+    if (document.visibilityState === "visible") {
+      if (this.ctx.state !== "suspended") return;
+      this.ctx.resume().catch(() => {});
+    } else if (this.ctx.state === "running") {
+      this.ctx.suspend().catch(() => {});
+    }
   }
 
   stopMusic() {
@@ -150,6 +139,8 @@ export class AudioManager {
 
   catch() {
     if (!this.ctx || this.muted || this.ctx.state !== "running") return;
+    if (Date.now() - (this.lastCatchAt || 0) < 60) return;
+    this.lastCatchAt = Date.now();
     const now = this.ctx.currentTime;
     this.#toneAt({
       type: "triangle",
@@ -359,43 +350,8 @@ export class AudioManager {
     return this.musicGainBase * (1 + this.intensity * 0.35);
   }
 
-  #applyMasterGain() {
-    if (!this.masterGain || !this.ctx) return;
-    this.masterGain.gain.setTargetAtTime(this.#targetMasterGain(), this.ctx.currentTime, 0.02);
-  }
-
   #applyMusicGain() {
     if (!this.musicGain || !this.ctx) return;
     this.musicGain.gain.setTargetAtTime(this.#targetMusicGain(), this.ctx.currentTime, 0.03);
-  }
-
-  #loadPersistedSettings() {
-    let raw = null;
-    try {
-      raw = localStorage.getItem(this.settingsStorageKey);
-    } catch {
-      return;
-    }
-    if (!raw) return;
-
-    try {
-      const stored = JSON.parse(raw);
-      if (Number.isFinite(stored?.volume)) {
-        this.volume = clamp(stored.volume, 0, 1);
-      }
-      if (typeof stored?.muted === "boolean") {
-        this.muted = stored.muted;
-      }
-    } catch {
-      return;
-    }
-  }
-
-  #persistSettings() {
-    try {
-      localStorage.setItem(this.settingsStorageKey, JSON.stringify({ muted: this.muted, volume: this.volume }));
-    } catch {
-      return;
-    }
   }
 }

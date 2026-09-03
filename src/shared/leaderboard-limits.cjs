@@ -8,6 +8,103 @@ const IP_POST_LIMIT = 50;
 const NAME_RECORD_LIMIT = 5;
 const TIMESTAMP_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const TIMESTAMP_MAX_SKEW_MS = 5 * 60 * 1000;
+const MAX_ENTRIES = 10;
+const MAX_NAME_LENGTH = 10;
+const MAX_SCORE = 1_000_000;
+const MAX_RUN_SECONDS = 6 * 60 * 60;
+const DIFFICULTIES = new Set(["normal"]);
+const BLOCKED_NAME_FRAGMENTS = [
+  "fuck", "shit", "bitch", "cunt", "dick", "pussy", "fucker",
+  "bastard", "whore", "slut", "nigger", "nigga", "retard", "motherfucker",
+];
+
+const normalizeName = (rawName) => {
+  if (typeof rawName !== "string") return "";
+  return rawName.replace(/\s+/gu, " ").trim().slice(0, MAX_NAME_LENGTH).trim();
+};
+
+const normalizeNameKey = (name) => normalizeName(name).toLocaleLowerCase("und");
+
+const isAllowedName = (name) => {
+  if (!name || name.length > MAX_NAME_LENGTH || !/^[\p{L}]+(?: [\p{L}]+)*$/u.test(name)) return false;
+  const compact = name.toLocaleLowerCase("und").replace(/\s+/gu, "");
+  return !BLOCKED_NAME_FRAGMENTS.some((fragment) => compact.includes(fragment));
+};
+
+const normalizeDifficulty = (value) => (DIFFICULTIES.has(value) ? value : "normal");
+
+const sanitizeEntries = (payload, now = Date.now()) => {
+  if (!Array.isArray(payload)) return [];
+  return payload
+    .map((entry) => ({
+      name: normalizeName(entry && typeof entry.name === "string" ? entry.name : ""),
+      score: entry && Number.isFinite(entry.score) ? Math.max(0, Math.floor(entry.score)) : 0,
+      ts: normalizeTimestamp(entry && entry.ts, now),
+      difficulty: normalizeDifficulty(entry && entry.difficulty),
+    }))
+    .filter((entry) => isAllowedName(entry.name) && entry.score > 0 && entry.score <= MAX_SCORE);
+};
+
+const normalizeEntries = (entries, now = Date.now()) => {
+  const byPlayer = new Map();
+  for (const entry of sanitizeEntries(entries, now)) {
+    const key = normalizeNameKey(entry.name);
+    const existing = byPlayer.get(key);
+    if (!existing || entry.score > existing.score || (entry.score === existing.score && entry.ts < existing.ts)) {
+      byPlayer.set(key, entry);
+    }
+  }
+  return [...byPlayer.values()]
+    .sort((a, b) => b.score - a.score || a.ts - b.ts)
+    .slice(0, MAX_ENTRIES);
+};
+
+const validateRecord = (payload, now = Date.now()) => {
+  const name = normalizeName(payload && payload.name);
+  const score = payload && Number.isFinite(payload.score) ? Math.floor(payload.score) : 0;
+  const requestedDifficulty = payload && payload.difficulty;
+  const difficulty = requestedDifficulty === undefined || requestedDifficulty === null
+    ? "normal"
+    : requestedDifficulty;
+  if (!isAllowedName(name)) return { ok: false, error: "Invalid player name" };
+  if (!Number.isInteger(score) || score <= 0 || score > MAX_SCORE) {
+    return { ok: false, error: "Invalid score" };
+  }
+  if (!DIFFICULTIES.has(difficulty)) return { ok: false, error: "Invalid difficulty" };
+
+  const telemetryProvided = ["duration", "catches", "misses", "bestCombo"].some(
+    (key) => Object.prototype.hasOwnProperty.call(payload, key)
+  );
+  if (telemetryProvided) {
+    const duration = Number(payload.duration);
+    const catches = Number(payload.catches);
+    const misses = Number(payload.misses);
+    const bestCombo = Number(payload.bestCombo);
+    const telemetryValid = Number.isFinite(duration)
+      && duration >= 1
+      && duration <= MAX_RUN_SECONDS
+      && Number.isInteger(catches)
+      && catches >= 0
+      && Number.isInteger(misses)
+      && misses >= 0
+      && misses <= 3
+      && Number.isInteger(bestCombo)
+      && bestCombo >= 1
+      && bestCombo <= Math.max(1, catches)
+      && score <= catches * 40 + duration * 4 + 100;
+    if (!telemetryValid) return { ok: false, error: "Implausible run data" };
+  }
+
+  return {
+    ok: true,
+    entry: {
+      name,
+      score,
+      ts: normalizeTimestamp(payload.ts, now),
+      difficulty,
+    },
+  };
+};
 
 const normalizeTimestamp = (ts, now = Date.now()) => {
   if (!Number.isFinite(ts)) return now;
@@ -66,6 +163,10 @@ const getClientIp = (forwardedFor, socket) => {
 };
 
 module.exports = {
+  MAX_ENTRIES,
+  MAX_NAME_LENGTH,
+  MAX_SCORE,
+  MAX_RUN_SECONDS,
   IP_POST_LIMIT,
   NAME_RECORD_LIMIT,
   RATE_LIMIT_WINDOW_MS,
@@ -73,6 +174,13 @@ module.exports = {
   TIMESTAMP_MAX_SKEW_MS,
   createFixedWindowLimiter,
   getClientIp,
+  isAllowedName,
+  normalizeDifficulty,
+  normalizeEntries,
+  normalizeName,
+  normalizeNameKey,
   normalizeTimestamp,
+  sanitizeEntries,
   toRetryAfterSeconds,
+  validateRecord,
 };

@@ -1,8 +1,9 @@
-import { AudioManager } from "./audio.js?v=20260901-2";
-import { InputManager } from "./input.js?v=20260901-2";
-import { Renderer } from "./renderer.js?v=20260901-14";
+import { AudioManager } from "./audio.js?v=20260903-31";
+import { InputManager } from "./input.js?v=20260903-31";
+import { Renderer } from "./renderer.js?v=20260903-31";
 import {
   bonusDropXRange,
+  ACTIVE_POPCORN_CAP,
   COUNTDOWN_DURATION,
   DEFAULT_DIFFICULTY,
   DIFFICULTY_PRESETS,
@@ -11,36 +12,79 @@ import {
   getBatchRecovery,
   getComboMultiplier,
   getDifficultyPreset,
+  getCountdownNumber,
+  getScoreSpeedMultiplier,
   isLastChance,
-} from "./shared/gameplay.js?v=20260901-3";
-import { clamp, circleRectCollision, formatMisses, lerp, rand, randInt, smoothstep } from "./utils.js";
+} from "./shared/gameplay.js?v=20260903-31";
+import {
+  resolveLandingRange,
+  resolveZoneFraction,
+  selectWavePattern,
+} from "./shared/waves.js?v=20260903-31";
+import {
+  clamp,
+  circleRectCollision,
+  formatMisses,
+  lerp,
+  prefersReducedMotion,
+  rand,
+  randInt,
+  smoothstep,
+} from "./utils.js";
+import {
+  normalizeName,
+  isAllowedName,
+  normalizeNameKey,
+} from "./shared/nickname.js?v=20260903-31";
+import { characterForId } from "./shared/characters.js?v=20260903-31";
+import {
+  computeCatchRect,
+  computeEffectPoint,
+  extendCatchRectToGround,
+} from "./shared/catch-region.js?v=20260903-31";
+import { trapFocus } from "./shared/focus.js?v=20260903-31";
 
 export class Game {
   constructor(elements) {
+    this.hud = elements.hud;
+    this.controls = elements.controls;
     this.canvas = elements.canvas;
     this.scoreValue = elements.scoreValue;
     this.missValue = elements.missValue;
     this.comboPill = elements.comboPill;
     this.comboValue = elements.comboValue;
     this.pointsAward = elements.pointsAward;
-    this.difficultyPill = elements.difficultyPill;
-    this.difficultyValue = elements.difficultyValue;
-    this.difficultySelect = elements.difficultySelect;
     this.startScreen = elements.startScreen;
     this.gameOverScreen = elements.gameOverScreen;
     this.pauseScreen = elements.pauseScreen;
     this.pauseBtn = elements.pauseBtn;
     this.resumeBtn = elements.resumeBtn;
-    this.pauseIcon = elements.pauseIcon;
     this.gameAnnouncer = elements.gameAnnouncer;
     this.playBtn = elements.playBtn;
     this.restartBtn = elements.restartBtn;
     this.finalScore = elements.finalScore;
-    this.muteBtn = elements.muteBtn;
-    this.muteIcon = elements.muteIcon;
-    this.volumeSlider = elements.volumeSlider;
-    this.volumeValue = elements.volumeValue;
+    this.homeBtn = elements.homeBtn;
+    this.homeEndBtn = elements.homeEndBtn;
+    this.pauseEndBtn = elements.pauseEndBtn;
+    this.quitConfirmOk = elements.quitConfirmOk;
+    this.quitConfirmCancel = elements.quitConfirmCancel;
+    this.quitConfirmEl = elements.quitConfirmEl;
+    this.quitConfirmOpen = false;
+    this.quitReturnState = null;
+    this.visibleOverlay = null;
+    this.focusTrapHandle = null;
+    this.lastCountdownNumber = "3";
+    this.announcementRecord = { last: 0 };
+    this.firstRunCompleted = false;
+    this.firstRunOverlay = elements.firstRunOverlay;
+    this.firstRunText = elements.firstRunText;
     this.milestoneBanner = elements.milestoneBanner;
+    this.runTimeEl = elements.runTimeEl;
+    this.runCaughtEl = elements.runCaughtEl;
+    this.runBestComboEl = elements.runBestComboEl;
+    this.runMissesEl = elements.runMissesEl;
+    this.runWaveEl = elements.runWaveEl;
+    this.runCharacterEl = elements.runCharacterEl;
     this.milestoneText = elements.milestoneText;
     this.lastChanceWarn = elements.lastChanceWarn;
     this.playerNameInput = elements.playerNameInput;
@@ -69,18 +113,27 @@ export class Game {
     this.dpr = 1;
     this.time = 0;
     this.lastFrame = 0;
+    this.lastDt = 1 / 60;
 
     this.gameClock = 0;
     this.score = 0;
     this.misses = 0;
     this.catchStreak = 0;
     this.lastAwardedPoints = 0;
-    this.difficultyStorageKey = "finn_popcorn_difficulty_v1";
-    this.difficulty = this.#loadDifficulty();
+    this.difficulty = DEFAULT_DIFFICULTY;
+    this.characterStorageKey = "finn_popcorn_character_v1";
+    this.character = this.#loadCharacter();
     this.batchIndex = 0;
     this.gameOverElapsed = 0;
     this.gameOverFxTimer = 0;
     this.activePlayerName = "";
+    this.waveName = "";
+    this.escapedGrace = 0;
+    this.maxActivePopcorns = 0;
+    this.bestCombo = 1;
+    this.totalCatches = 0;
+    this.balanceMetrics = { enabled: false };
+    this.reducedMotion = prefersReducedMotion();
 
     this.popcorns = [];
     this.bonusBirds = [];
@@ -102,6 +155,7 @@ export class Game {
       h: 0,
       nozzleX: 0,
       nozzleY: 0,
+      nozzleAngle: Math.PI / 10,
       firePulse: 0,
     };
 
@@ -135,27 +189,27 @@ export class Game {
     this.popcornThemes = [
       {
         body: "#fffef5",
-        stroke: "#f7e5bf",
-        belly: "#fff6d8",
+        stroke: "#d9b370",
+        belly: "#ffe8c0",
       },
       {
         body: "#ffd4d4",
-        stroke: "#ff7f86",
+        stroke: "#e36b7e",
         belly: "#ffacb5",
       },
       {
         body: "#d7e8ff",
-        stroke: "#6ea6ff",
+        stroke: "#5f9ad6",
         belly: "#aecbff",
       },
       {
         body: "#fff2b2",
-        stroke: "#f4c84f",
+        stroke: "#d6a845",
         belly: "#ffe07d",
       },
       {
         body: "#ffd9ad",
-        stroke: "#f19a44",
+        stroke: "#cf7f2a",
         belly: "#ffc274",
       },
     ];
@@ -185,9 +239,9 @@ export class Game {
     this.#bindUiEvents();
     this.#resize();
     this.#updateHud();
-    this.#syncVolumeUi();
     this.#hydrateLastPlayerName();
     this.#renderLeaderboards();
+    this.focusTrapHandle = trapFocus(this.startScreen);
     void this.#syncLeaderboardFromServer();
     this.leaderboardPollTimer = window.setInterval(() => {
       if (this.state !== "playing" || this.pendingLeaderboardOps.length > 0) {
@@ -210,14 +264,24 @@ export class Game {
     this.restartBtn.addEventListener("click", () => {
       this.#unlockAudio();
       this.audio.click();
-      this.#showStartScreen();
+      this.startGame();
     });
+    if (this.homeEndBtn) {
+      this.homeEndBtn.addEventListener("click", () => {
+        this.#unlockAudio();
+        this.audio.click();
+        this.#showStartScreen();
+      });
+    }
 
-    this.difficultySelect?.addEventListener("change", () => {
-      this.difficulty = getDifficultyPreset(this.difficultySelect.value);
-      this.#saveDifficulty();
-      this.#updateHud();
-    });
+    for (const radio of document.querySelectorAll("input[name=character]")) {
+      radio.addEventListener("change", () => {
+        if (radio.checked) {
+          this.character = radio.value === "dyno" ? "dyno" : "dog";
+          this.#saveCharacter();
+        }
+      });
+    }
 
     const pause = () => {
       this.#unlockAudio();
@@ -225,30 +289,14 @@ export class Game {
     };
     this.pauseBtn?.addEventListener("click", pause);
     this.resumeBtn?.addEventListener("click", pause);
+    if (this.pauseEndBtn) this.pauseEndBtn.addEventListener("click", () => this.#endRunFromPause());
 
-    this.muteBtn.addEventListener("click", () => {
-      this.#unlockAudio();
-      const muted = this.audio.toggleMute();
-      this.muteIcon.textContent = muted ? "🔇" : "🔊";
-      this.audio.click();
-      this.#syncVolumeUi();
-    });
-
-    if (this.volumeSlider) {
-      this.volumeSlider.addEventListener("input", () => {
-        this.#unlockAudio();
-        const volume = Number(this.volumeSlider.value) / 100;
-        this.audio.setVolume(volume);
-        this.#syncVolumeUi();
-      });
-    }
+    this.homeBtn?.addEventListener("click", () => this.#openQuitConfirm());
+    if (this.quitConfirmOk) this.quitConfirmOk.addEventListener("click", () => this.#confirmQuitToHome());
+    if (this.quitConfirmCancel) this.quitConfirmCancel.addEventListener("click", () => this.#cancelQuitConfirm());
 
     if (this.playerNameInput) {
       this.playerNameInput.addEventListener("input", () => {
-        const sanitized = this.#normalizeName(this.playerNameInput.value);
-        if (sanitized !== this.playerNameInput.value) {
-          this.playerNameInput.value = sanitized;
-        }
         this.#clearNameError();
       });
 
@@ -261,8 +309,16 @@ export class Game {
     }
 
     window.addEventListener("keydown", (event) => {
-      if (event.code !== "Space" || event.repeat) return;
+      const isPauseKey = event.code === "Space" || event.code === "Escape";
+      if (!isPauseKey || event.repeat) return;
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+      if (this.quitConfirmOpen && this.visibleOverlay === "quit") {
+        if (event.code === "Escape") {
+          event.preventDefault();
+          this.#cancelQuitConfirm();
+        }
+        return;
+      }
       if (this.state !== "playing" && this.state !== "paused") return;
       event.preventDefault();
       this.#togglePause();
@@ -282,6 +338,37 @@ export class Game {
     window.addEventListener("resize", () => this.#resize());
     window.addEventListener("orientationchange", () => this.#resize());
     document.addEventListener("visibilitychange", () => this.audio.handleVisibilityChange());
+
+    if (this.firstRunOverlay) {
+      this.firstRunCompleted = this.#readTutorialCompleted();
+    }
+  }
+
+  #readTutorialCompleted() {
+    try {
+      return Boolean(localStorage.getItem("finn_tutorial_done_v1"));
+    } catch {
+      return false;
+    }
+  }
+
+  #showFirstRunIfFirst() {
+    if (this.firstRunCompleted || !this.firstRunOverlay) return;
+    this.firstRunOverlay.classList.add("visible");
+    if (this.firstRunText) this.firstRunText.textContent = "Use ← / →, A / D or touch to move.";
+  }
+
+  #completeTutorial() {
+    if (!this.firstRunCompleted) {
+      this.firstRunCompleted = true;
+      try {
+        localStorage.setItem("finn_tutorial_done_v1", "1");
+      } catch {
+        // Ignore.
+      }
+      if (this.firstRunOverlay) this.firstRunOverlay.classList.remove("visible");
+      this.#announce("Tutorial completed. Catch the popcorn!");
+    }
   }
 
   async #unlockAudio() {
@@ -303,6 +390,12 @@ export class Game {
     this.input.clearHeldInput();
     this.startScreen.classList.remove("visible");
     this.gameOverScreen.classList.remove("visible");
+    this.#setGameplayUiHidden(false);
+    if (this.focusTrapHandle) {
+      this.focusTrapHandle.release();
+      this.focusTrapHandle = null;
+    }
+    if (this.homeBtn) this.homeBtn.hidden = false;
     this.#hidePauseOverlay();
     this.#setPauseButtonState(false);
     if (document.activeElement instanceof HTMLElement) {
@@ -317,6 +410,11 @@ export class Game {
     this.batchIndex = 0;
     this.gameOverElapsed = 0;
     this.gameOverFxTimer = 0;
+    this.waveName = "Pair";
+    this.escapedGrace = DIFFICULTY_PRESETS[this.difficulty].escapedGrace;
+    this.maxActivePopcorns = 0;
+    this.bestCombo = 1;
+    this.totalCatches = 0;
     this.popcorns.length = 0;
     this.bonusBirds.length = 0;
     this.bonusDrops.length = 0;
@@ -333,6 +431,7 @@ export class Game {
 
     this.#resetDogPosition();
     this.#updateHud(true);
+    this.#showFirstRunIfFirst();
     this.#announce("Game starting. Get ready.");
   }
 
@@ -349,9 +448,18 @@ export class Game {
     this.milestoneBannerTimer = 0;
     this.#hideMilestoneBanner();
     this.#hideLastChanceWarn();
+    if (this.firstRunOverlay) this.firstRunOverlay.classList.remove("visible");
     this.#hidePauseOverlay();
     this.shake = Math.max(this.shake, 14);
-    this.#spawnParticles(this.dog.x, this.dog.y - this.dog.h * 0.18, {
+
+    const charMeta = characterForId(this.character);
+    const effectPoint = computeEffectPoint(
+      this.dog.x,
+      this.dog.y,
+      this.dog.w,
+      this.dog.facing
+    );
+    this.#spawnParticles(effectPoint.x, effectPoint.y, {
       count: 30,
       speedMin: 55,
       speedMax: 245,
@@ -362,11 +470,49 @@ export class Game {
       colors: ["#ffd69a", "#ffab73", "#ff6f6a", "#fff2c8"],
     });
     this.#recordLeaderboardScore();
-    this.finalScore.textContent = `Final Score: ${this.score} - ${this.activePlayerName}`;
+
+    // Fill run statistics.
+    const caught = this.#countCatches();
+    if (this.runCaughtEl) this.runCaughtEl.textContent = String(caught);
+    if (this.runMissesEl) this.runMissesEl.textContent = formatMisses(this.misses, this.maxMisses);
+    if (this.runBestComboEl) this.runBestComboEl.textContent = String(Math.max(this.bestCombo || 1, 1));
+    if (this.runWaveEl) this.runWaveEl.textContent = this.waveName || "Pair";
+    if (this.runCharacterEl) this.runCharacterEl.textContent = charMeta.label;
+    if (this.runTimeEl) this.runTimeEl.textContent = `${this.#gameElapsedSeconds().toFixed(1)}s`;
+    if (this.activePlayerName) {
+      this.finalScore.textContent = `Final Score: ${this.score} — ${this.activePlayerName}`;
+    } else {
+      this.finalScore.textContent = `Final Score: ${this.score}`;
+    }
+
+    this.#setGameplayUiHidden(true);
     this.gameOverScreen.classList.add("visible");
+    if (this.focusTrapHandle) {
+      this.focusTrapHandle.release();
+    }
+    this.focusTrapHandle = trapFocus(this.gameOverScreen);
+    if (this.homeBtn) this.homeBtn.hidden = true;
     this.#announce(`Game over. Final score ${this.score}.`);
     this.audio.stopMusic();
     this.audio.gameOver();
+
+    if (this.balanceMetrics.enabled) {
+      const summary = {
+        score: this.score,
+        duration: this.#gameElapsedSeconds(),
+        catches: caught,
+        misses: this.misses,
+        bestCombo: Math.max(this.bestCombo || 1, 1),
+        maxActivePopcorns: this.maxActivePopcorns,
+        difficulty: this.difficulty,
+        wave: this.waveName,
+      };
+      this.balanceMetrics.lastSummary = summary;
+      console.info("[BalanceMetrics] Run summary", summary);
+    }
+
+    // Reset per-run counters for the next session.
+    this.bestCombo = 1;
   }
 
   #showStartScreen() {
@@ -376,10 +522,18 @@ export class Game {
     this.#setPauseButtonState(false);
     this.startScreen.classList.add("visible");
     this.gameOverScreen.classList.remove("visible");
+    this.#setGameplayUiHidden(false);
     this.#hidePauseOverlay();
+    if (this.focusTrapHandle) {
+      this.focusTrapHandle.release();
+    }
+    this.focusTrapHandle = trapFocus(this.startScreen);
+
+    if (this.homeBtn) this.homeBtn.hidden = true;
     this.#clearNameError();
     this.#hideMilestoneBanner();
     this.#hideLastChanceWarn();
+    if (this.firstRunOverlay) this.firstRunOverlay.classList.remove("visible");
     this.milestoneBannerTimer = 0;
     this.gameOverElapsed = 0;
     this.gameOverFxTimer = 0;
@@ -392,8 +546,107 @@ export class Game {
     }
   }
 
+  #setGameplayUiHidden(hidden) {
+    for (const element of [this.hud, this.controls]) {
+      if (!element) continue;
+      element.classList.toggle("gameplay-ui-hidden", hidden);
+      element.setAttribute("aria-hidden", String(hidden));
+    }
+  }
+
+  #openQuitConfirm() {
+    if (this.state === "start") return;
+    this.quitReturnState = this.state;
+    if (this.state === "playing") {
+      this.#togglePause();
+    } else if (this.state === "countdown") {
+      this.state = "paused";
+      this.input.clearHeldInput();
+      this.#showPauseOverlay();
+      this.#setPauseButtonState(true);
+      this.audio.stopMusic();
+    }
+    this.quitConfirmOpen = true;
+    this.visibleOverlay = "quit";
+    if (this.focusTrapHandle) {
+      this.focusTrapHandle.release();
+      this.focusTrapHandle = null;
+    }
+    if (this.quitConfirmEl) {
+      this.quitConfirmEl.classList.add("visible");
+      this.focusTrapHandle = trapFocus(this.quitConfirmEl);
+      this.quitConfirmOk.focus();
+    }
+    if (this.pauseScreen) this.pauseScreen.classList.add("dimmed");
+  }
+
+  #confirmQuitToHome() {
+    if (!this.quitConfirmOpen) return;
+    this.quitConfirmOpen = false;
+    this.quitReturnState = null;
+    this.visibleOverlay = null;
+    if (this.focusTrapHandle) {
+      this.focusTrapHandle.release();
+      this.focusTrapHandle = null;
+    }
+    if (this.quitConfirmEl) this.quitConfirmEl.classList.remove("visible");
+    if (this.pauseScreen) this.pauseScreen.classList.remove("dimmed");
+    this.#quitToHome();
+  }
+
+  #cancelQuitConfirm() {
+    if (!this.quitConfirmOpen) return;
+    const returnState = this.quitReturnState;
+    this.quitConfirmOpen = false;
+    this.quitReturnState = null;
+    this.visibleOverlay = null;
+    if (this.focusTrapHandle) {
+      this.focusTrapHandle.release();
+      this.focusTrapHandle = null;
+    }
+    if (this.quitConfirmEl) this.quitConfirmEl.classList.remove("visible");
+    if (this.pauseScreen) this.pauseScreen.classList.remove("dimmed");
+    if (returnState === "playing" && this.state === "paused") {
+      this.#togglePause();
+    } else if (returnState === "countdown" && this.state === "paused") {
+      this.state = "countdown";
+      this.#hidePauseOverlay();
+      this.#setPauseButtonState(false);
+      this.audio.resumeMusic();
+    } else if (this.state === "paused") {
+      this.#showPauseOverlay();
+    }
+    if (returnState === "playing" || returnState === "countdown") {
+      if (this.pauseBtn) this.pauseBtn.focus();
+    } else if (this.resumeBtn) {
+      this.resumeBtn.focus();
+    }
+  }
+
+  #endRunFromPause() {
+    this.#openQuitConfirm();
+  }
+
+  #quitToHome() {
+    if (this.state === "start") return;
+    this.#unlockAudio();
+    this.audio.click();
+    this.input.clearHeldInput();
+    this.audio.stopMusic();
+    this.launchEvents.length = 0;
+    this.popcorns.length = 0;
+    this.bonusBirds.length = 0;
+    this.bonusDrops.length = 0;
+    this.particles.length = 0;
+    this.shake = 0;
+    this.#resetDogPosition();
+    this.#showStartScreen();
+    this.#announce("Current game ended. Back at the home screen.");
+  }
+
   #resize() {
-    const rect = this.canvas.getBoundingClientRect();
+    const activeCanvas = this.renderer.canvas || this.canvas;
+    const rect = activeCanvas.getBoundingClientRect();
     this.width = Math.max(320, rect.width || window.innerWidth);
     this.height = Math.max(340, rect.height || window.innerHeight);
     this.dpr = clamp(window.devicePixelRatio || 1, 1, 2);
@@ -406,11 +659,14 @@ export class Game {
     this.machine.h = clamp(this.height * 0.33, 130, 240);
     this.machine.x = this.width - this.machine.w * 0.92;
     this.machine.y = this.groundY - this.machine.h;
-    this.machine.nozzleX = this.machine.x - this.machine.w * 0.08;
-    this.machine.nozzleY = this.machine.y + this.machine.h * 0.5;
+    const nozzleLength = this.machine.w * 0.3;
+    const nozzleBaseX = this.machine.x + this.machine.w * 0.05;
+    const nozzleBaseY = this.machine.y + this.machine.h * 0.5;
+    this.machine.nozzleX = nozzleBaseX - Math.cos(this.machine.nozzleAngle) * nozzleLength;
+    this.machine.nozzleY = nozzleBaseY - Math.sin(this.machine.nozzleAngle) * nozzleLength;
 
-    const oldW = this.dog.w || clamp(this.width * 0.12, 56, 100);
-    const newW = clamp(this.width * 0.12, 56, 100);
+    const oldW = this.dog.w || clamp(this.width * 0.132, 60, 110);
+    const newW = clamp(this.width * 0.132, 60, 110);
     const scale = newW / oldW;
 
     this.dog.w = newW;
@@ -438,6 +694,7 @@ export class Game {
     const timestamp = timestampMs * 0.001;
     const dt = clamp(timestamp - this.lastFrame || 0.016, 0.001, 0.033);
     this.lastFrame = timestamp;
+    this.lastDt = dt;
     if (this.state !== "paused") {
       this.time += dt;
     }
@@ -461,10 +718,14 @@ export class Game {
 
     if (this.state === "countdown") {
       this.countdownElapsed += dt;
-      if (this.countdownElapsed >= COUNTDOWN_DURATION) {
+      const number = getCountdownNumber(this.countdownElapsed, COUNTDOWN_DURATION);
+      if (number === "GO") {
         this.state = "playing";
         this.nextBatchAt = this.gameClock;
         this.#announce("Go!");
+      } else if (this.lastCountdownNumber !== number) {
+        this.lastCountdownNumber = number;
+        this.#announce(number);
       }
       return;
     }
@@ -476,9 +737,11 @@ export class Game {
         this.#queueNextBatch();
       }
 
-      while (this.launchEvents.length > 0 && this.launchEvents[0].at <= this.gameClock) {
-        this.launchEvents.shift();
-        this.#spawnPopcorn();
+      while (this.launchEvents.length > 0 && this.popcorns.length < ACTIVE_POPCORN_CAP) {
+        const nextLaunch = this.launchEvents[0];
+        if (Number.isFinite(nextLaunch.at) && nextLaunch.at > this.gameClock) break;
+        const launch = this.launchEvents.shift();
+        this.#spawnPopcorn(launch);
       }
 
       this.#spawnBonusBirdIfReady();
@@ -508,15 +771,25 @@ export class Game {
   #updateDog(dt) {
     const axis = this.input.getAxis();
     const move = axis * this.dog.speed * dt;
+    const previousX = this.dog.x;
+    if (!this.firstRunCompleted && axis !== 0) {
+      this.#completeTutorial();
+    }
 
     this.dog.x = clamp(this.dog.x + move, this.#dogMinX(), this.#dogMaxX());
-    this.dog.movement = lerp(this.dog.movement, Math.abs(axis), dt * 13);
+    const travelled = Math.abs(this.dog.x - previousX);
+    const isTravelling = travelled > 0.01;
+    this.dog.movement = isTravelling
+      ? lerp(this.dog.movement, Math.abs(axis), dt * 13)
+      : 0;
 
     if (axis !== 0) {
       this.dog.facing = axis > 0 ? 1 : -1;
-      this.dog.stepPhase += dt * (12 + this.dog.movement * 8);
-    } else {
-      this.dog.stepPhase += dt * 5;
+    }
+    if (isTravelling) {
+      const strideLength = Math.max(this.dog.w * 2.2, 1);
+      this.dog.stepPhase =
+        (this.dog.stepPhase + (travelled / strideLength) * Math.PI * 2) % (Math.PI * 2);
     }
 
     if (this.dog.chewTimer > 0) {
@@ -546,8 +819,41 @@ export class Game {
         popcorn.vy *= 0.75;
       }
 
+      const activeCatchRect = popcorn.groundBounces > 0
+        ? extendCatchRectToGround(catchRect, this.groundY)
+        : catchRect;
+
+      // Catch first so a bounced kernel touching Finn on its final landing is
+      // collected instead of being removed as a miss on the same frame.
+      if (circleRectCollision(popcorn, activeCatchRect)) {
+        this.#handleCatch(popcorn);
+        this.popcorns.splice(i, 1);
+        continue;
+      }
+
       if (popcorn.y + popcorn.r >= this.groundY) {
         popcorn.y = this.groundY - popcorn.r;
+        const grace = DIFFICULTY_PRESETS[this.difficulty].escapedGrace;
+
+        if (grace > 0 && this.escapedGrace > 0) {
+          this.escapedGrace -= 1;
+          popcorn.groundBounces = 1;
+          popcorn.vy = -Math.max(Math.abs(popcorn.vy) * 0.4, this.height * 0.16);
+          popcorn.vx *= 0.52;
+          popcorn.spinSpeed *= 0.72;
+
+          this.#spawnParticles(popcorn.x, this.groundY - 4, {
+            count: 4,
+            speedMin: 18,
+            speedMax: 62,
+            lifeMin: 0.12,
+            lifeMax: 0.22,
+            sizeMin: 1.2,
+            sizeMax: 2.8,
+            colors: ["#ffe4a6", "#ffd179", "#f6b763"],
+          });
+          continue;
+        }
 
         if (popcorn.groundBounces === 0) {
           popcorn.groundBounces = 1;
@@ -572,10 +878,6 @@ export class Game {
         }
       }
 
-      if (circleRectCollision(popcorn, catchRect)) {
-        this.#handleCatch(popcorn);
-        this.popcorns.splice(i, 1);
-      }
     }
   }
 
@@ -753,6 +1055,8 @@ export class Game {
 
   #handleCatch(popcorn) {
     this.catchStreak += 1;
+    this.bestCombo = Math.max(this.bestCombo || 1, this.catchStreak);
+    this.totalCatches = (this.totalCatches || 0) + 1;
     const basePoints = popcorn.points || 5;
     const points = getAwardedCatchPoints(basePoints, this.catchStreak);
     this.lastAwardedPoints = points;
@@ -760,7 +1064,9 @@ export class Game {
     this.dog.chewTimer = this.dog.chewDuration;
     const scoreFactor = clamp(points / 5, 1, 2.4);
 
-    this.#spawnParticles(popcorn.x, popcorn.y, {
+    const effect = computeEffectPoint(this.dog.x, this.dog.y, this.dog.w, this.dog.facing);
+
+    this.#spawnParticles(effect.x, effect.y, {
       count: Math.round(9 + scoreFactor * 6),
       speedMin: 35,
       speedMax: 175 + scoreFactor * 20,
@@ -772,16 +1078,16 @@ export class Game {
     });
 
     this.particles.push({
-      x: popcorn.x,
-      y: popcorn.y,
+      x: effect.x,
+      y: effect.y,
       vx: 0,
       vy: 0,
       gravity: 0,
       drag: 0,
-      size: popcorn.r * 1.5,
-      life: 0.22,
-      maxLife: 0.22,
-      alpha: 0.6,
+      size: popcorn.r * 1.1,
+      life: 0.19,
+      maxLife: 0.19,
+      alpha: 0.4,
       color: "#fffbd2",
       shape: "ring",
       rotation: 0,
@@ -798,6 +1104,7 @@ export class Game {
 
   #handleMiss(popcorn) {
     this.misses += 1;
+    this.escapedGrace = Math.max(this.escapedGrace - 1, 0);
     this.catchStreak = 0;
     this.lastAwardedPoints = 0;
     this.shake = Math.max(this.shake, 8);
@@ -818,6 +1125,9 @@ export class Game {
 
     if (isLastChance(this.misses, this.maxMisses)) {
       this.#showLastChanceWarn();
+      this.#announce("Miss! Last miss left.");
+    } else {
+      this.#announce(`Miss! ${formatMisses(this.misses, this.maxMisses)}`);
     }
 
     if (this.misses >= this.maxMisses) {
@@ -840,15 +1150,21 @@ export class Game {
   #queueNextBatch() {
     this.batchIndex += 1;
     const [minCount, maxCount] = this.#getBatchRange(this.batchIndex);
+    const pattern = selectWavePattern(this.batchIndex);
+    this.waveName = pattern.name;
     const count = randInt(minCount, maxCount);
 
-    const spacingMin = Math.max(0.2, 0.42 - this.batchIndex * 0.006);
-    const spacingMax = Math.max(0.36, 0.78 - this.batchIndex * 0.008);
+    const spacingMin = Math.max(0.1, pattern.spacing[0] - this.batchIndex * 0.002);
+    const spacingMax = Math.max(0.3, pattern.spacing[1] - this.batchIndex * 0.004);
 
-    let at = this.gameClock + rand(0.2, 0.46);
+    let at = this.gameClock;
     for (let i = 0; i < count; i += 1) {
-      at += rand(spacingMin, spacingMax);
-      this.launchEvents.push({ at });
+      if (i > 0) at += rand(spacingMin, spacingMax);
+      this.launchEvents.push({
+        at,
+        zone: resolveZoneFraction(pattern.landingZone, i),
+        recovery: pattern.recovery,
+      });
     }
 
     const recovery = getBatchRecovery(this.batchIndex);
@@ -859,8 +1175,8 @@ export class Game {
     return getBatchRange(batchNumber, this.difficulty);
   }
 
-  #spawnPopcorn() {
-    const popcorn = this.#createPopcornTrajectory();
+  #spawnPopcorn(launch = {}) {
+    const popcorn = this.#createPopcornTrajectory(launch.zone);
     popcorn.theme = this.#currentPopcornTheme();
     this.popcorns.push(popcorn);
 
@@ -879,22 +1195,30 @@ export class Game {
     this.audio.launch();
   }
 
-  #createPopcornTrajectory() {
+  #createPopcornTrajectory(zone) {
     const startX = this.machine.nozzleX;
     const startY = this.machine.nozzleY + rand(-6, 5);
     const variant = this.#pickPopcornVariant();
     const radius = clamp(this.width * 0.011, 7, 11) * variant.scale;
     const landingMin = this.width * 0.06;
-    const landingMax = this.width * 0.84;
+    const landingMax = Math.min(this.width * 0.84, this.#dogMaxX());
     const preset = DIFFICULTY_PRESETS[this.difficulty];
+    const scoreSpeedMultiplier = getScoreSpeedMultiplier(this.score);
+
+    const [zoneMin, zoneMax] = resolveLandingRange(
+      zone,
+      this.width,
+      landingMin,
+      landingMax
+    );
 
     for (let attempt = 0; attempt < 40; attempt += 1) {
       const intensity = clamp((this.batchIndex - 1) * 0.03, 0, 0.22);
       const flightTime = rand(
         preset.flightTime[0] - intensity * 0.22,
         preset.flightTime[1] - intensity * 0.14
-      );
-      const biasX = clamp(this.dog.x + rand(-this.width * 0.38, this.width * 0.38), landingMin, landingMax);
+      ) / scoreSpeedMultiplier;
+      const biasX = clamp(zone ? rand(zoneMin, zoneMax) : rand(landingMin, landingMax), landingMin, landingMax);
       const landingX = lerp(rand(landingMin, landingMax), biasX, 0.34);
       const apexY = rand(this.height * preset.apex[0], this.height * preset.apex[1]);
       const yEnd = this.groundY - rand(9, 14);
@@ -910,8 +1234,8 @@ export class Game {
       const vy = -Math.sqrt(2 * gravity * lift);
       const vx = (landingX - startX) / flightTime;
 
-      const speedLimit = this.width * 0.56;
-      if (Math.abs(vx) > speedLimit || Math.abs(vx) < this.width * 0.05) {
+      const speedLimit = this.width * 0.56 * scoreSpeedMultiplier;
+      if (!Number.isFinite(vx) || Math.abs(vx) > speedLimit || Math.abs(vx) < this.width * 0.05) {
         continue;
       }
 
@@ -939,9 +1263,9 @@ export class Game {
     return {
       x: startX,
       y: startY,
-      vx: -this.width * 0.34,
-      vy: -this.height * 0.48,
-      g: this.height * 0.74,
+      vx: -this.width * 0.34 * scoreSpeedMultiplier,
+      vy: -this.height * 0.48 * scoreSpeedMultiplier,
+      g: this.height * 0.74 * scoreSpeedMultiplier ** 2,
       r: radius,
       points: variant.points,
       variant: variant.id,
@@ -954,6 +1278,7 @@ export class Game {
   }
 
   #trajectoryInBounds(x0, y0, vx, vy, g, totalTime) {
+    if (![x0, y0, vx, vy, g, totalTime].every(Number.isFinite)) return false;
     const checks = 20;
     for (let i = 0; i <= checks; i += 1) {
       const t = (i / checks) * totalTime;
@@ -1015,6 +1340,7 @@ export class Game {
   }
 
   #updateHud(scorePop = false) {
+    this.maxActivePopcorns = Math.max(this.maxActivePopcorns, this.popcorns.length);
     this.scoreValue.textContent = String(this.score);
     this.missValue.textContent = formatMisses(this.misses, this.maxMisses);
     this.audio.setIntensity(clamp(this.score / 500, 0, 1));
@@ -1028,51 +1354,37 @@ export class Game {
     if (this.pointsAward) {
       this.pointsAward.textContent = this.lastAwardedPoints > 0 ? `+${this.lastAwardedPoints}` : "";
     }
-    if (this.difficultyPill && this.difficultyValue) {
-      this.difficultyPill.hidden = this.difficulty === DEFAULT_DIFFICULTY;
-      this.difficultyValue.textContent = DIFFICULTY_PRESETS[this.difficulty].label;
-    }
-
     if (scorePop) {
       this.scoreValue.classList.remove("pop");
       // Force style flush to restart animation.
       void this.scoreValue.offsetWidth;
       this.scoreValue.classList.add("pop");
     }
+
+    if (this.balanceMetrics.enabled) {
+      this.balanceMetrics.catches = Number(this.balanceMetrics.catches || 0) + 1;
+    }
   }
 
-  #loadDifficulty() {
-    let stored = DEFAULT_DIFFICULTY;
-    try {
-      stored = localStorage.getItem(this.difficultyStorageKey) || DEFAULT_DIFFICULTY;
-    } catch {
-      stored = DEFAULT_DIFFICULTY;
-    }
-    const difficulty = getDifficultyPreset(stored);
-    if (this.difficultySelect) {
-      this.difficultySelect.value = difficulty;
-    }
-    return difficulty;
+  #loadCharacter() {
+    const stored = (() => {
+      try {
+        return localStorage.getItem(this.characterStorageKey) || "dog";
+      } catch {
+        return "dog";
+      }
+    })();
+    const valid = stored === "dyno" ? "dyno" : "dog";
+    const radio = document.querySelector(`input[name="character"][value="${valid}"]`);
+    if (radio) radio.checked = true;
+    return valid;
   }
 
-  #saveDifficulty() {
+  #saveCharacter() {
     try {
-      localStorage.setItem(this.difficultyStorageKey, this.difficulty);
+      localStorage.setItem(this.characterStorageKey, this.character);
     } catch {
       return;
-    }
-  }
-
-  #syncVolumeUi() {
-    const volumePercent = Math.round(this.audio.getVolume() * 100);
-    if (this.volumeSlider) {
-      this.volumeSlider.value = String(volumePercent);
-    }
-    if (this.volumeValue) {
-      this.volumeValue.textContent = `${volumePercent}%`;
-    }
-    if (this.muteIcon) {
-      this.muteIcon.textContent = this.audio.isMuted() || volumePercent <= 0 ? "🔇" : "🔊";
     }
   }
 
@@ -1128,25 +1440,35 @@ export class Game {
   }
 
   #dogCatchRect() {
-    return {
-      x: this.dog.x - this.dog.w * 0.42,
-      y: this.dog.y - this.dog.h * 0.7,
-      w: this.dog.w * 0.84,
-      h: this.dog.h * 0.62,
-    };
+    const charMeta = characterForId(this.character);
+    return computeCatchRect(this.dog.x, this.dog.y, this.dog.w, this.dog.facing, charMeta);
   }
 
   #dogMinX() {
-    return this.dog.w * 0.5 + 6;
+    const visualHalfWidth = Math.max(this.dog.w * 0.5, this.dog.h * 0.9);
+    return visualHalfWidth + 8;
   }
 
   #dogMaxX() {
-    return this.width - this.dog.w * 0.5 - 8;
+    const visualHalfWidth = Math.max(this.dog.w * 0.5, this.dog.h * 0.9);
+    const screenEdge = this.width - visualHalfWidth - 8;
+    const machineEdge = this.machine.x - this.machine.w * 0.12 - visualHalfWidth;
+    return Math.min(screenEdge, machineEdge);
+  }
+
+  #countCatches() {
+    return this.totalCatches || 0;
+  }
+
+  #gameElapsedSeconds() {
+    return this.gameClock;
   }
 
   #render() {
+    const shake = this.reducedMotion ? 0 : this.shake;
     this.renderer.render({
       time: this.time,
+      dt: this.lastDt,
       state: this.state,
       countdownElapsed: this.countdownElapsed,
       gameOverElapsed: this.gameOverElapsed,
@@ -1160,7 +1482,13 @@ export class Game {
       bonusBirds: this.bonusBirds,
       bonusDrops: this.bonusDrops,
       particles: this.particles,
-      shake: this.shake,
+      shake,
+      reducedMotion: this.reducedMotion,
+      lastAwardedPoints: this.lastAwardedPoints,
+      catchStreak: this.catchStreak,
+      milestoneBannerTimer: this.milestoneBannerTimer,
+      character: this.character,
+      waveName: this.waveName,
     });
   }
 
@@ -1177,7 +1505,7 @@ export class Game {
     }
 
     if (!this.#isAllowedPlayerName(normalizedName)) {
-      this.#setNameError("Use English letters/spaces only, max 10 chars.");
+      this.#setNameError("Use letters and spaces only, max 10 chars.");
       return false;
     }
 
@@ -1188,27 +1516,25 @@ export class Game {
     this.#clearNameError();
     this.#saveLastPlayerName(normalizedName);
     if (previousStoredName && this.#normalizeNameKey(previousStoredName) !== this.#normalizeNameKey(normalizedName)) {
-      this.#renameLeaderboardPlayer(previousStoredName, normalizedName);
+      // Renaming a player is intentionally unsupported so the session cannot
+      // hijack existing leaderboard entries. The new name starts a new
+      // identity instead.
+      console.info("[Leaderboard] Name changed. Starting a new identity.");
     }
 
     return true;
   }
 
   #normalizeName(rawName) {
-    if (typeof rawName !== "string") return "";
-    const collapsed = rawName.replace(/\s+/g, " ").trim();
-    const cleaned = collapsed.replace(/[^A-Za-z ]/g, "");
-    return cleaned.slice(0, this.maxNameLength).trim();
+    return normalizeName(rawName);
   }
 
   #normalizeNameKey(name) {
-    return this.#normalizeName(name).toLowerCase();
+    return normalizeNameKey(name);
   }
 
   #isAllowedPlayerName(name) {
-    if (!/^[A-Za-z]+(?: [A-Za-z]+)*$/.test(name)) return false;
-    const compact = name.toLowerCase().replace(/\s+/g, "");
-    return !this.blockedNameFragments.some((fragment) => compact.includes(fragment));
+    return isAllowedName(name);
   }
 
   #setNameError(message) {
@@ -1241,8 +1567,13 @@ export class Game {
         name: this.#normalizeName(typeof entry.name === "string" ? entry.name : ""),
         score: Number.isFinite(entry.score) ? Math.max(0, Math.floor(entry.score)) : 0,
         ts: Number.isFinite(entry.ts) ? entry.ts : Date.now(),
+        difficulty: this.#validateDifficulty(entry.difficulty),
       }))
       .filter((entry) => this.#isAllowedPlayerName(entry.name));
+  }
+
+  #validateDifficulty(value) {
+    return getDifficultyPreset(value);
   }
 
   #loadPendingLeaderboardOps() {
@@ -1268,24 +1599,19 @@ export class Game {
     if (action === "record") {
       const name = this.#normalizeName(typeof operation.name === "string" ? operation.name : "");
       if (!this.#isAllowedPlayerName(name)) return null;
-      return {
+      const sanitized = {
         action: "record",
         name,
         score: Number.isFinite(operation.score) ? Math.max(0, Math.floor(operation.score)) : 0,
         ts: Number.isFinite(operation.ts) ? operation.ts : Date.now(),
+        difficulty: this.#validateDifficulty(operation.difficulty),
       };
-    }
-
-    if (action === "rename") {
-      const fromName = this.#normalizeName(typeof operation.fromName === "string" ? operation.fromName : "");
-      const toName = this.#normalizeName(typeof operation.toName === "string" ? operation.toName : "");
-      if (!this.#isAllowedPlayerName(fromName) || !this.#isAllowedPlayerName(toName)) return null;
-      return {
-        action: "rename",
-        fromName,
-        toName,
-        ts: Number.isFinite(operation.ts) ? operation.ts : Date.now(),
-      };
+      if (Number.isFinite(operation.duration)) sanitized.duration = Math.max(0, operation.duration);
+      if (Number.isFinite(operation.catches)) sanitized.catches = Math.max(0, Math.floor(operation.catches));
+      if (Number.isFinite(operation.misses)) sanitized.misses = Math.max(0, Math.floor(operation.misses));
+      if (Number.isFinite(operation.bestCombo)) sanitized.bestCombo = Math.max(1, Math.floor(operation.bestCombo));
+      if (typeof operation.wave === "string") sanitized.wave = operation.wave.slice(0, 30);
+      return sanitized;
     }
 
     return null;
@@ -1328,6 +1654,12 @@ export class Game {
       name: this.activePlayerName,
       score: this.score,
       ts: Date.now(),
+      difficulty: this.difficulty,
+      duration: this.#gameElapsedSeconds(),
+      catches: this.#countCatches(),
+      misses: this.misses,
+      bestCombo: Math.max(this.bestCombo || 1, 1),
+      wave: this.waveName,
     };
 
     this.leaderboardEntries = this.#normalizeLeaderboardEntries([...this.leaderboardEntries, entry]);
@@ -1338,23 +1670,12 @@ export class Game {
       name: entry.name,
       score: entry.score,
       ts: entry.ts,
-    });
-  }
-
-  #renameLeaderboardPlayer(fromName, toName) {
-    const from = this.#normalizeName(fromName);
-    const to = this.#normalizeName(toName);
-    if (!this.#isAllowedPlayerName(from) || !this.#isAllowedPlayerName(to)) return;
-    if (this.#normalizeNameKey(from) === this.#normalizeNameKey(to)) return;
-
-    this.leaderboardEntries = this.#applyRenameToLeaderboard(this.leaderboardEntries, from, to);
-    this.#saveLeaderboard();
-    this.#renderLeaderboards();
-    void this.#submitLeaderboardOperation({
-      action: "rename",
-      fromName: from,
-      toName: to,
-      ts: Date.now(),
+      difficulty: entry.difficulty,
+      duration: entry.duration,
+      catches: entry.catches,
+      misses: entry.misses,
+      bestCombo: entry.bestCombo,
+      wave: entry.wave,
     });
   }
 
@@ -1465,51 +1786,6 @@ export class Game {
       .slice(0, this.maxLeaderboardEntries);
   }
 
-  #applyRenameToLeaderboard(entries, fromName, toName) {
-    const fromKey = this.#normalizeNameKey(fromName);
-    const toKey = this.#normalizeNameKey(toName);
-    if (!fromKey || !toKey) return this.#normalizeLeaderboardEntries(entries);
-
-    if (fromKey === toKey) {
-      return this.#normalizeLeaderboardEntries(
-        entries.map((entry) =>
-          this.#normalizeNameKey(entry.name) === fromKey ? { ...entry, name: toName } : entry
-        )
-      );
-    }
-
-    const survivors = [];
-    const mergePool = [];
-    for (const entry of entries) {
-      const key = this.#normalizeNameKey(entry.name);
-      if (key === fromKey || key === toKey) {
-        mergePool.push(entry);
-      } else {
-        survivors.push(entry);
-      }
-    }
-
-    if (mergePool.length === 0) {
-      return this.#normalizeLeaderboardEntries(entries);
-    }
-
-    let winner = mergePool[0];
-    for (let i = 1; i < mergePool.length; i += 1) {
-      const candidate = mergePool[i];
-      if (candidate.score > winner.score || (candidate.score === winner.score && candidate.ts < winner.ts)) {
-        winner = candidate;
-      }
-    }
-
-    return this.#normalizeLeaderboardEntries([
-      ...survivors,
-      {
-        ...winner,
-        name: toName,
-      },
-    ]);
-  }
-
   #renderLeaderboards() {
     this.#renderLeaderboardList(this.leaderboardListStart);
     this.#renderLeaderboardList(this.leaderboardListOver);
@@ -1529,7 +1805,7 @@ export class Game {
 
     for (const entry of this.leaderboardEntries) {
       const item = document.createElement("li");
-      item.textContent = `${entry.name} - ${entry.score}`;
+      item.textContent = `${entry.name} — ${entry.score}`;
       target.append(item);
     }
   }
@@ -1584,7 +1860,6 @@ export class Game {
   #setPauseButtonState(isPaused) {
     if (!this.pauseBtn) return;
     this.pauseBtn.setAttribute("aria-label", isPaused ? "Resume game" : "Pause game");
-    if (this.pauseIcon) this.pauseIcon.textContent = isPaused ? "▶" : "Ⅱ";
   }
 
   #announce(message) {
@@ -1598,10 +1873,18 @@ export class Game {
   #showPauseOverlay() {
     if (!this.pauseScreen) return;
     this.pauseScreen.classList.add("visible");
+    if (this.focusTrapHandle) {
+      this.focusTrapHandle.release();
+    }
+    this.focusTrapHandle = trapFocus(this.pauseScreen);
   }
 
   #hidePauseOverlay() {
     if (!this.pauseScreen) return;
     this.pauseScreen.classList.remove("visible");
+    if (this.focusTrapHandle) {
+      this.focusTrapHandle.release();
+      this.focusTrapHandle = null;
+    }
   }
 }
