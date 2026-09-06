@@ -1,4 +1,4 @@
-import { CharacterSprite3D } from "./character-sprite3d.js?v=20260906-33";
+import { CharacterSprite3D } from "./character-sprite3d.js?v=20260906-34";
 
 export class Dog3D extends CharacterSprite3D {
   constructor() {

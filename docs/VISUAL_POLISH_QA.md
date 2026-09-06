@@ -39,6 +39,9 @@ roadmap and is not the source of truth for this release.
   miss shake was reduced to a restrained local emphasis.
 - Machine recoil and glow are driven by launch events with a short damped return
   instead of continuous nozzle oscillation.
+- Score pressure now advances at 4,000 points and every 1,000 through 9,000. Each
+  bounded tier adds 7% flight speed, 2.5% launch cadence, and reduces assistance
+  by 2%; a specific `Tempo up` milestone makes the change understandable.
 
 ### Interface, screens, and accessibility
 

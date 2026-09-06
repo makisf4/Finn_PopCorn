@@ -1,6 +1,6 @@
-import { AudioManager } from "./audio.js?v=20260906-33";
-import { InputManager } from "./input.js?v=20260906-33";
-import { Renderer } from "./renderer.js?v=20260906-33";
+import { AudioManager } from "./audio.js?v=20260906-34";
+import { InputManager } from "./input.js?v=20260906-34";
+import { Renderer } from "./renderer.js?v=20260906-34";
 import {
   bonusDropXRange,
   ACTIVE_POPCORN_CAP,
@@ -13,13 +13,14 @@ import {
   getComboMultiplier,
   getDifficultyPreset,
   getCountdownNumber,
-  getScoreSpeedMultiplier,
-} from "./shared/gameplay.js?v=20260906-33";
+  getScorePressure,
+  createPressuredBallisticArc,
+} from "./shared/gameplay.js?v=20260906-34";
 import {
   resolveLandingRange,
   resolveZoneFraction,
   selectWavePattern,
-} from "./shared/waves.js?v=20260906-33";
+} from "./shared/waves.js?v=20260906-34";
 import {
   clamp,
   circleRectCollision,
@@ -34,14 +35,14 @@ import {
   normalizeName,
   isAllowedName,
   normalizeNameKey,
-} from "./shared/nickname.js?v=20260906-33";
-import { characterForId } from "./shared/characters.js?v=20260906-33";
+} from "./shared/nickname.js?v=20260906-34";
+import { characterForId } from "./shared/characters.js?v=20260906-34";
 import {
   computeCatchRect,
   computeEffectPoint,
   extendCatchRectToGround,
-} from "./shared/catch-region.js?v=20260906-33";
-import { trapFocus } from "./shared/focus.js?v=20260906-33";
+} from "./shared/catch-region.js?v=20260906-34";
+import { trapFocus } from "./shared/focus.js?v=20260906-34";
 
 export class Game {
   constructor(elements) {
@@ -151,6 +152,7 @@ export class Game {
     this.shake = 0;
     this.milestoneBannerTimer = 0;
     this.lastMilestoneScore = 0;
+    this.lastDifficultyTier = 0;
 
     this.machine = {
       x: 0,
@@ -435,6 +437,7 @@ export class Game {
     this.shake = 0;
     this.milestoneBannerTimer = 0;
     this.lastMilestoneScore = 0;
+    this.lastDifficultyTier = 0;
     this.#hideMilestoneBanner();
     this.audio.resumeMusic();
 
@@ -1045,6 +1048,9 @@ export class Game {
   #applyAssist(popcorn, dt) {
     const distance = Math.abs(popcorn.x - this.dog.x);
     const preset = DIFFICULTY_PRESETS[this.difficulty];
+    const assistStrength = Number.isFinite(popcorn.assistStrength)
+      ? popcorn.assistStrength
+      : preset.assistStrength;
     const descending = popcorn.vy > 20;
     const inAssistBand = popcorn.y > this.height * 0.22 && popcorn.y < this.height * 0.86;
 
@@ -1052,7 +1058,7 @@ export class Game {
     if (descending && inAssistBand) {
       const distFactor = clamp((distance - this.dog.w * 0.75) / (this.width * 0.55), 0, 1);
       const heightFactor = smoothstep(this.height * 0.22, this.height * 0.82, popcorn.y);
-      targetAssist = clamp(distFactor * heightFactor * preset.assistStrength, 0, 1);
+      targetAssist = clamp(distFactor * heightFactor * assistStrength, 0, 1);
       if (popcorn.y > this.height * 0.67) {
         targetAssist = Math.min(1, targetAssist + 0.12);
       }
@@ -1152,11 +1158,12 @@ export class Game {
     this.batchIndex += 1;
     const [minCount, maxCount] = this.#getBatchRange(this.batchIndex);
     const pattern = selectWavePattern(this.batchIndex);
+    const pressure = getScorePressure(this.score);
     this.waveName = pattern.name;
     const count = randInt(minCount, maxCount);
 
-    const spacingMin = Math.max(0.1, pattern.spacing[0] - this.batchIndex * 0.002);
-    const spacingMax = Math.max(0.3, pattern.spacing[1] - this.batchIndex * 0.004);
+    const spacingMin = Math.max(0.1, pattern.spacing[0] - this.batchIndex * 0.002) / pressure.cadence;
+    const spacingMax = Math.max(0.3, pattern.spacing[1] - this.batchIndex * 0.004) / pressure.cadence;
 
     let at = this.gameClock;
     for (let i = 0; i < count; i += 1) {
@@ -1168,7 +1175,7 @@ export class Game {
       });
     }
 
-    const recovery = getBatchRecovery(this.batchIndex);
+    const recovery = getBatchRecovery(this.batchIndex) / pressure.cadence;
     this.nextBatchAt = at + recovery;
   }
 
@@ -1204,7 +1211,7 @@ export class Game {
     const landingMin = this.width * 0.06;
     const landingMax = Math.min(this.width * 0.84, this.#dogMaxX());
     const preset = DIFFICULTY_PRESETS[this.difficulty];
-    const scoreSpeedMultiplier = getScoreSpeedMultiplier(this.score);
+    const pressure = getScorePressure(this.score);
 
     const [zoneMin, zoneMax] = resolveLandingRange(
       zone,
@@ -1215,10 +1222,10 @@ export class Game {
 
     for (let attempt = 0; attempt < 40; attempt += 1) {
       const intensity = clamp((this.batchIndex - 1) * 0.03, 0, 0.22);
-      const flightTime = rand(
+      const baseFlightTime = rand(
         preset.flightTime[0] - intensity * 0.22,
         preset.flightTime[1] - intensity * 0.14
-      ) / scoreSpeedMultiplier;
+      );
       const biasX = clamp(zone ? rand(zoneMin, zoneMax) : rand(landingMin, landingMax), landingMin, landingMax);
       const landingX = lerp(rand(landingMin, landingMax), biasX, 0.34);
       const apexY = rand(this.height * preset.apex[0], this.height * preset.apex[1]);
@@ -1230,12 +1237,19 @@ export class Game {
         continue;
       }
 
-      const rootG = (Math.sqrt(2 * lift) + Math.sqrt(2 * dropFromApex)) / flightTime;
-      const gravity = rootG * rootG;
-      const vy = -Math.sqrt(2 * gravity * lift);
-      const vx = (landingX - startX) / flightTime;
+      const arc = createPressuredBallisticArc({
+        startX,
+        startY,
+        landingX,
+        apexY,
+        endY: yEnd,
+        baseFlightTime,
+        score: this.score,
+      });
+      if (!arc) continue;
+      const { flightTime, vx, vy, gravity } = arc;
 
-      const speedLimit = this.width * 0.56 * scoreSpeedMultiplier;
+      const speedLimit = this.width * 0.56 * pressure.flightSpeed;
       if (!Number.isFinite(vx) || Math.abs(vx) > speedLimit || Math.abs(vx) < this.width * 0.05) {
         continue;
       }
@@ -1257,6 +1271,8 @@ export class Game {
         spin: rand(0, Math.PI * 2),
         spinSpeed: rand(-6.5, 6.5),
         assist: 0,
+        assistStrength: preset.assistStrength * pressure.assistScale,
+        difficultyTier: pressure.tier,
         groundBounces: 0,
       };
     }
@@ -1264,9 +1280,9 @@ export class Game {
     return {
       x: startX,
       y: startY,
-      vx: -this.width * 0.34 * scoreSpeedMultiplier,
-      vy: -this.height * 0.48 * scoreSpeedMultiplier,
-      g: this.height * 0.74 * scoreSpeedMultiplier ** 2,
+      vx: -this.width * 0.34 * pressure.flightSpeed,
+      vy: -this.height * 0.48 * pressure.flightSpeed,
+      g: this.height * 0.74 * pressure.flightSpeed ** 2,
       r: radius,
       points: variant.points,
       variant: variant.id,
@@ -1274,6 +1290,8 @@ export class Game {
       spin: rand(0, Math.PI * 2),
       spinSpeed: rand(-5.5, 5.5),
       assist: 0,
+      assistStrength: preset.assistStrength * pressure.assistScale,
+      difficultyTier: pressure.tier,
       groundBounces: 0,
     };
   }
@@ -1435,6 +1453,14 @@ export class Game {
 
   #checkMilestone() {
     if (this.state !== "playing") return;
+    const difficultyTier = getScorePressure(this.score).tier;
+    if (difficultyTier > this.lastDifficultyTier) {
+      this.lastDifficultyTier = difficultyTier;
+      this.lastMilestoneScore = Math.floor(this.score / 100) * 100;
+      this.#showMilestoneBanner(`Tempo up · Level ${difficultyTier}`);
+      this.audio.yeah();
+      return;
+    }
     const reachedMilestone = Math.floor(this.score / 100) * 100;
     if (reachedMilestone <= 0 || reachedMilestone === this.lastMilestoneScore) return;
 

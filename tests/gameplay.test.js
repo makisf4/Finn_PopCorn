@@ -11,6 +11,8 @@ import {
   getDifficultyPreset,
   getScoreDifficultyTier,
   getScoreSpeedMultiplier,
+  getScorePressure,
+  createPressuredBallisticArc,
   DIFFICULTY_PRESETS,
   DEFAULT_DIFFICULTY,
 } from "../src/shared/gameplay.js";
@@ -80,13 +82,58 @@ describe("score-based difficulty ramp", () => {
     assert.equal(getScoreDifficultyTier(4999), 1);
     assert.equal(getScoreDifficultyTier(5000), 2);
     assert.equal(getScoreDifficultyTier(9000), 6);
+    assert.equal(getScoreDifficultyTier(10_000), 6);
+    assert.equal(getScoreDifficultyTier(100_000), 6);
   });
 
-  it("makes each tier cumulatively five percent faster", () => {
+  it("adds a noticeable seven percent flight-speed step per tier", () => {
     assert.equal(getScoreSpeedMultiplier(3999), 1);
-    assert.equal(getScoreSpeedMultiplier(4000), 1.05);
-    assert.equal(getScoreSpeedMultiplier(5000), 1.05 ** 2);
+    assert.equal(getScoreSpeedMultiplier(4000), 1.07);
+    assert.ok(Math.abs(getScoreSpeedMultiplier(5000) - 1.14) < 1e-12);
+    assert.equal(getScoreSpeedMultiplier(9000), 1.42);
     assert.equal(getScoreSpeedMultiplier(Number.NaN), 1);
+  });
+
+  it("combines bounded flight, cadence, and assistance pressure", () => {
+    assert.deepEqual(getScorePressure(3999), {
+      tier: 0,
+      flightSpeed: 1,
+      cadence: 1,
+      assistScale: 1,
+    });
+    assert.deepEqual(getScorePressure(9000), {
+      tier: 6,
+      flightSpeed: 1.42,
+      cadence: 1.15,
+      assistScale: 0.88,
+    });
+  });
+
+  it("makes the actual ballistic arc reach the same target sooner", () => {
+    const input = {
+      startX: 900,
+      startY: 300,
+      landingX: 300,
+      apexY: 100,
+      endY: 700,
+      baseFlightTime: 2.8,
+    };
+    const baseline = createPressuredBallisticArc({ ...input, score: 3999 });
+    const tierOne = createPressuredBallisticArc({ ...input, score: 4000 });
+    const capped = createPressuredBallisticArc({ ...input, score: 50_000 });
+
+    assert.equal(baseline.flightTime, 2.8);
+    assert.ok(tierOne.flightTime < baseline.flightTime);
+    assert.equal(capped.flightTime, 2.8 / 1.42);
+
+    for (const arc of [baseline, tierOne, capped]) {
+      const endX = input.startX + arc.vx * arc.flightTime;
+      const endY = input.startY
+        + arc.vy * arc.flightTime
+        + 0.5 * arc.gravity * arc.flightTime ** 2;
+      assert.ok(Math.abs(endX - input.landingX) < 1e-9);
+      assert.ok(Math.abs(endY - input.endY) < 1e-9);
+    }
   });
 });
 

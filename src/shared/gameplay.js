@@ -9,7 +9,10 @@ export const COUNTDOWN_DURATION = 2.3;
 export const DEFAULT_DIFFICULTY = "normal";
 export const SCORE_RAMP_START = 4_000;
 export const SCORE_RAMP_INTERVAL = 1_000;
-export const SCORE_RAMP_STEP = 1.05;
+export const SCORE_RAMP_MAX_TIER = 6;
+export const SCORE_FLIGHT_SPEED_PER_TIER = 0.07;
+export const SCORE_CADENCE_PER_TIER = 0.025;
+export const SCORE_ASSIST_REDUCTION_PER_TIER = 0.02;
 
 export const DIFFICULTY_PRESETS = Object.freeze({
   normal: Object.freeze({
@@ -35,11 +38,48 @@ export function getDifficultyPreset(value) {
 export function getScoreDifficultyTier(score) {
   const safeScore = Number.isFinite(score) ? Math.max(0, score) : 0;
   if (safeScore < SCORE_RAMP_START) return 0;
-  return Math.floor((safeScore - SCORE_RAMP_START) / SCORE_RAMP_INTERVAL) + 1;
+  const tier = Math.floor((safeScore - SCORE_RAMP_START) / SCORE_RAMP_INTERVAL) + 1;
+  return Math.min(tier, SCORE_RAMP_MAX_TIER);
 }
 
 export function getScoreSpeedMultiplier(score) {
-  return SCORE_RAMP_STEP ** getScoreDifficultyTier(score);
+  return 1 + SCORE_FLIGHT_SPEED_PER_TIER * getScoreDifficultyTier(score);
+}
+
+export function getScorePressure(score) {
+  const tier = getScoreDifficultyTier(score);
+  return {
+    tier,
+    flightSpeed: 1 + SCORE_FLIGHT_SPEED_PER_TIER * tier,
+    cadence: 1 + SCORE_CADENCE_PER_TIER * tier,
+    assistScale: 1 - SCORE_ASSIST_REDUCTION_PER_TIER * tier,
+  };
+}
+
+export function createPressuredBallisticArc({
+  startX,
+  startY,
+  landingX,
+  apexY,
+  endY,
+  baseFlightTime,
+  score,
+}) {
+  const pressure = getScorePressure(score);
+  const flightTime = baseFlightTime / pressure.flightSpeed;
+  const lift = startY - apexY;
+  const dropFromApex = endY - apexY;
+  if (![startX, startY, landingX, apexY, endY, flightTime].every(Number.isFinite)) return null;
+  if (flightTime <= 0 || lift <= 0 || dropFromApex <= 0) return null;
+
+  const rootG = (Math.sqrt(2 * lift) + Math.sqrt(2 * dropFromApex)) / flightTime;
+  const gravity = rootG * rootG;
+  return {
+    flightTime,
+    vx: (landingX - startX) / flightTime,
+    vy: -Math.sqrt(2 * gravity * lift),
+    gravity,
+  };
 }
 
 export function getComboMultiplier(catchStreak) {

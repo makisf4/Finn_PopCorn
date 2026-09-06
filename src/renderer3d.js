@@ -7,15 +7,15 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { Background3D, makeSkyTexture } from "./entities3d/background3d.js";
 import { Machine3D } from "./entities3d/machine3d.js";
 import { Popcorns3D } from "./entities3d/popcorn3d.js";
-import { Dog3D } from "./entities3d/dog3d.js?v=20260906-33";
-import { Dyno3D } from "./entities3d/dyno3d.js?v=20260906-33";
+import { Dog3D } from "./entities3d/dog3d.js?v=20260906-34";
+import { Dyno3D } from "./entities3d/dyno3d.js?v=20260906-34";
 import { Bonus3D } from "./entities3d/bonus3d.js";
 import { Particles3D } from "./entities3d/particles3d.js";
 import { Overlay2D } from "./entities3d/overlay2d.js";
 import { ScoreFloaters3D } from "./entities3d/scorefloaters3d.js";
 import { DustMotes3D } from "./entities3d/dustmotes3d.js";
 
-import { getQuality, computeAutoQuality } from "./shared/quality.js?v=20260906-33";
+import { getQuality, computeAutoQuality } from "./shared/quality.js?v=20260906-34";
 
 const FOV_DEG = 50;
 

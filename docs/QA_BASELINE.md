@@ -26,6 +26,7 @@ automated suite for these visual and interaction checks.
 | Run both directions and turn | Facing swaps instantly without crossing zero width; 7% squash stays grounded |
 | Repeated equal-value catches | Every catch creates a separate local burst and `+N`; no catch camera shake or zoom |
 | Maximum streak | HUD progresses through actual thresholds and settles at `×4 MAX`; floaters do not imply double multiplication |
+| Score pressure tiers | At 4,000 and every 1,000 through 9,000, `Tempo up` appears; newly launched kernels move faster and the following batch cadence tightens without changing collision size |
 | Bonus bird | Beneficial `BONUS` cue appears for the existing 0.6-second alert in both renderers |
 | First and second miss | Marker count updates; second miss adds persistent `Last chance` text and only brief restrained emphasis |
 | Pause and quit | Movement clears; Continue and Quit are distinct; quit confirmation focuses Continue; inactive controls cannot receive focus |

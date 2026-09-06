@@ -1,4 +1,4 @@
-import { Game } from "./game.js?v=20260906-33";
+import { Game } from "./game.js?v=20260906-34";
 
 const byId = (id) => document.getElementById(id);
 

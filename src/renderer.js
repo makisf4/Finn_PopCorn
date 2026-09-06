@@ -1,5 +1,5 @@
-import { Renderer2D } from "./renderer2d.js?v=20260906-33";
-import { Renderer3D } from "./renderer3d.js?v=20260906-33";
+import { Renderer2D } from "./renderer2d.js?v=20260906-34";
+import { Renderer3D } from "./renderer3d.js?v=20260906-34";
 
 function webglAvailable() {
   try {

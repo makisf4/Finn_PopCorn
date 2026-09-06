@@ -22,7 +22,7 @@ Open:
 
 ```bash
 node server.mjs
-npm test             # Node's built-in test runner, 68 tests
+npm test             # Node's built-in test runner, 70 tests
 npm run check:syntax # node --check on every source module
 npm run lint        # ESLint (no framework needed, all project rules)
 npm run test:assets # ensure runtime asset refs resolve
@@ -45,7 +45,7 @@ The full manual browser smoke-test matrix is in `docs/QA_BASELINE.md`.
 - Misses count until 3 end the run.
 - Catch streaks multiply catch points (combo).
 - One balanced arcade mode uses brisker flight timing and restrained catch assistance.
-- At 4,000 points, launch speed increases by 5%; another cumulative 5% is added every 1,000 points thereafter.
+- At 4,000 points and every 1,000 points through 9,000, a bounded pressure tier makes flights 7% faster, launch cadence 2.5% tighter, and catch assistance 2% lighter. A short `Tempo up` message marks each tier.
 - Wave patterns alternate, cluster, sweep or add recovery instead of just rising batch counts.
 - Dog and Dinosaur are cosmetic options.
 - Game over shows a prominent score plus player, catches, best streak, misses, wave, and time — `Play Again` immediately restarts.
