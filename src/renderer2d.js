@@ -2,13 +2,13 @@ import {
   COUNTDOWN_DURATION,
   getCountdownNumber,
   shouldShowBonusBirdAlert,
-} from "./shared/gameplay.js?v=20260903-32";
+} from "./shared/gameplay.js?v=20260906-33";
 import {
   createFacingState,
   pickRunFrame,
   updateFacing,
-} from "./shared/animation.js?v=20260903-32";
-import { clamp } from "./utils.js?v=20260903-32";
+} from "./shared/animation.js?v=20260906-33";
+import { clamp } from "./utils.js?v=20260906-33";
 
 export class Renderer2D {
   constructor(canvas) {
@@ -18,11 +18,15 @@ export class Renderer2D {
     this.height = 0;
     this.dpr = 1;
     this.dogAnimations = null;
+    this.characterAnchor = Object.freeze({ originX: 0.52, originY: 0.93 });
     this.fallbackNeeded = false;
     this.characterArt = this.#loadCharacterArt();
     this.facingState = createFacingState(-1);
     this.backgroundLayer = null;
     this.groundLayer = null;
+    this.rimCache = new WeakMap();
+    this.scoreFloaters = [];
+    this.lastAwardId = 0;
   }
 
   resize(width, height, dpr) {
@@ -49,6 +53,7 @@ export class Renderer2D {
     }
 
     this.#drawBackground(scene);
+    this.#drawGround(scene);
 
     for (const bird of scene.bonusBirds || []) {
       this.#drawBonusBird(bird);
@@ -72,8 +77,8 @@ export class Renderer2D {
       this.#drawParticle(particle);
     }
 
+    this.#drawScoreFloaters(scene);
     this.#drawDog(scene);
-    this.#drawGround(scene);
     this.#drawGameOverFx(scene);
     this.#drawCountdown(scene);
 
@@ -89,7 +94,7 @@ export class Renderer2D {
     }
     ctx.drawImage(this.backgroundLayer, 0, 0, this.width, this.height);
 
-    const stripeOffset = (scene.time * 18) % 36;
+    const stripeOffset = scene.reducedMotion ? 0 : (scene.time * 8) % 36;
     ctx.globalAlpha = 0.12;
     ctx.fillStyle = "#ffffff";
     for (let x = -40; x < this.width + 60; x += 36) {
@@ -112,7 +117,7 @@ export class Renderer2D {
     bgCtx.fillStyle = sky;
     bgCtx.fillRect(0, 0, this.width, this.height);
 
-    const sunX = this.width * 0.16;
+    const sunX = this.width * 0.84;
     const sunY = this.height * 0.16;
     const glow = bgCtx.createRadialGradient(sunX, sunY, 10, sunX, sunY, this.height * 0.17);
     glow.addColorStop(0, "rgba(255, 244, 164, 0.95)");
@@ -122,13 +127,13 @@ export class Renderer2D {
     bgCtx.arc(sunX, sunY, this.height * 0.17, 0, Math.PI * 2);
     bgCtx.fill();
 
-    this.#drawCloud(bgCtx, this.width * 0.16, this.height * 0.18, this.height * 0.06, 0.95);
-    this.#drawCloud(bgCtx, this.width * 0.45, this.height * 0.12, this.height * 0.07, 0.85);
-    this.#drawCloud(bgCtx, this.width * 0.68, this.height * 0.22, this.height * 0.055, 0.92);
+    this.#drawCloud(bgCtx, this.width * 0.2, this.height * 0.2, this.height * 0.052, 0.72);
+    this.#drawCloud(bgCtx, this.width * 0.52, this.height * 0.12, this.height * 0.06, 0.66);
+    this.#drawCloud(bgCtx, this.width * 0.72, this.height * 0.25, this.height * 0.046, 0.68);
 
     const hillBack = bgCtx.createLinearGradient(0, this.height * 0.56, 0, this.height * 0.88);
-    hillBack.addColorStop(0, "#77d677");
-    hillBack.addColorStop(1, "#57b85a");
+    hillBack.addColorStop(0, "#a7d9a0");
+    hillBack.addColorStop(1, "#79ba7c");
 
     bgCtx.fillStyle = hillBack;
     bgCtx.beginPath();
@@ -341,7 +346,7 @@ export class Renderer2D {
       ctx.stroke();
     }
 
-    const recoil = Math.sin(scene.time * 14) * 0.8 + machine.firePulse * 3.2;
+    const recoil = Math.sin((1 - machine.firePulse) * Math.PI) * machine.firePulse * 3.2;
     const nozzleAngle = machine.nozzleAngle || 0;
     const popperW = w * 0.3;
     const popperH = h * 0.1;
@@ -365,7 +370,7 @@ export class Renderer2D {
     ctx.stroke();
     ctx.restore();
 
-    const flame = clamp(machine.firePulse * 0.9, 0, 1);
+    const flame = clamp((machine.firePulse - 0.35) / 0.65, 0, 1);
     if (flame > 0.01) {
       ctx.globalAlpha = flame * 0.55;
       ctx.fillStyle = "#ffde7a";
@@ -503,18 +508,61 @@ export class Renderer2D {
     if (!shouldShowBonusBirdAlert(bird)) return;
 
     const { ctx } = this;
-    const y = bird.y - bird.h * 1.45;
+    const y = bird.y - bird.h * 1.65;
+    const label = "BONUS";
 
     ctx.save();
-    ctx.font = `bold ${Math.round(clamp(bird.h * 1.6, 18, 42))}px Georgia`;
+    const fontSize = Math.round(clamp(bird.h * 0.62, 11, 16));
+    ctx.font = `900 ${fontSize}px Trebuchet MS, sans-serif`;
     ctx.textAlign = "center";
-    ctx.textBaseline = "bottom";
-    ctx.lineWidth = Math.max(3, bird.h * 0.3);
+    ctx.textBaseline = "middle";
+    const width = ctx.measureText(label).width + 24;
+    this.#roundedRect(bird.x - width / 2, y - 13, width, 26, 13);
+    ctx.fillStyle = "rgba(255, 247, 230, 0.96)";
+    ctx.fill();
+    ctx.lineWidth = 2;
     ctx.strokeStyle = "rgba(4, 26, 48, 0.9)";
-    ctx.strokeText("!", bird.x, y);
-    ctx.fillStyle = "#ff4236";
-    ctx.fillText("!", bird.x, y);
+    ctx.stroke();
+    ctx.fillStyle = "#c02f72";
+    ctx.fillText(label, bird.x, y + 0.5);
+    ctx.fillStyle = "#ff79b8";
+    ctx.beginPath();
+    ctx.arc(bird.x - width / 2 + 12, y, 5, 0, Math.PI * 2);
+    ctx.fill();
     ctx.restore();
+  }
+
+  #drawScoreFloaters(scene) {
+    for (const event of scene.awardEvents || []) {
+      if (event.id > this.lastAwardId) {
+        this.scoreFloaters.push({ ...event, life: 0.78, maxLife: 0.78 });
+      }
+      this.lastAwardId = Math.max(this.lastAwardId, event.id);
+    }
+    const dt = scene.state === "paused" ? 0 : Math.max(0, scene.dt || 0);
+    for (let i = this.scoreFloaters.length - 1; i >= 0; i -= 1) {
+      const floater = this.scoreFloaters[i];
+      floater.life -= dt;
+      if (floater.life <= 0) {
+        this.scoreFloaters.splice(i, 1);
+        continue;
+      }
+      const t = 1 - floater.life / floater.maxLife;
+      const alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+      const scale = Math.min(1, t * 7) * (1 + Math.sin(t * Math.PI) * 0.08);
+      const fontSize = (floater.kind === "bonus" ? 28 : 24) * scale;
+      this.ctx.save();
+      this.ctx.globalAlpha = alpha;
+      this.ctx.font = `900 ${fontSize}px Trebuchet MS, sans-serif`;
+      this.ctx.textAlign = "center";
+      this.ctx.textBaseline = "middle";
+      this.ctx.lineWidth = Math.max(2, fontSize * 0.12);
+      this.ctx.strokeStyle = "rgba(7, 24, 56, 0.92)";
+      this.ctx.strokeText(`+${floater.points}`, floater.x, floater.y - t * 38);
+      this.ctx.fillStyle = floater.kind === "bonus" ? "#ffb3d4" : "#fff8dc";
+      this.ctx.fillText(`+${floater.points}`, floater.x, floater.y - t * 38);
+      this.ctx.restore();
+    }
   }
 
   #drawBonusDrop(drop) {
@@ -731,14 +779,15 @@ export class Renderer2D {
     this.facingState = { facing: facing.mirrorSign, progress: facing.progress };
     const movingIntensity = Math.abs(dog.movement);
     const bob = 0;
-    const chewLift =
+    const catchLift =
       !isGameOver && dog.chewTimer > 0
-        ? Math.sin((1 - dog.chewTimer / dog.chewDuration) * Math.PI * 2.6) * 2.4
+        ? Math.sin(Math.min(1, (1 - dog.chewTimer / dog.chewDuration) * 2) * Math.PI) * 1.5
         : 0;
 
     const x = dog.x;
     const squashY = facing.squash;
-    const y = dog.y + bob - chewLift + dog.h * 0.34;
+    const settle = isGameOver ? Math.min(1, (scene.gameOverElapsed || 0) * 2.1) * dog.h * 0.045 : 0;
+    const y = dog.y + bob - catchLift + dog.h * 0.34 + settle;
 
     ctx.save();
 
@@ -754,6 +803,17 @@ export class Renderer2D {
       return;
     }
 
+    const shadowWidth = dog.w * (0.78 + movingIntensity * 0.06);
+    const shadowY = scene.groundY - 2;
+    const shadow = ctx.createRadialGradient(x, shadowY, 2, x, shadowY, shadowWidth * 0.52);
+    shadow.addColorStop(0, "rgba(16, 36, 63, 0.24)");
+    shadow.addColorStop(0.62, "rgba(16, 36, 63, 0.12)");
+    shadow.addColorStop(1, "rgba(16, 36, 63, 0)");
+    ctx.fillStyle = shadow;
+    ctx.beginPath();
+    ctx.ellipse(x, shadowY, shadowWidth * 0.52, dog.h * 0.095, 0, 0, Math.PI * 2);
+    ctx.fill();
+
     ctx.translate(x, y);
     ctx.scale(facing.mirrorSign, squashY);
 
@@ -761,23 +821,38 @@ export class Renderer2D {
     const naturalW = activeFrame.image.naturalWidth || activeFrame.image.width || 1;
     const naturalH = activeFrame.image.naturalHeight || activeFrame.image.height || 1;
     const spriteDrawWidth = spriteDrawHeight * (naturalW / naturalH);
-    const drawX = -spriteDrawWidth * this.dogAnimations.originX;
-    const drawAdjustmentY = -(1 - squashY) * spriteDrawHeight * 0.5;
-    const drawY = -spriteDrawHeight * this.dogAnimations.originY;
+    const drawX = -spriteDrawWidth * this.characterAnchor.originX;
+    const anchorBottom = spriteDrawHeight * (1 - this.characterAnchor.originY);
+    const drawAdjustmentY = anchorBottom * (1 / squashY - 1);
+    const drawY = -spriteDrawHeight * this.characterAnchor.originY;
 
-    // Soft rim so the silhouette separates from ground shades.
-    const rimPalette = scene.character === "dyno" ? "rgba(238, 222, 192, 0.94)" : "rgba(255, 118, 126, 0.9)";
+    // Constant-color alpha mask: a quiet rim, never a tinted duplicate image.
+    const rim = this.#getRimCanvas(activeFrame.image);
     ctx.save();
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = rimPalette;
-    ctx.filter = "blur(6px)";
-    ctx.drawImage(activeFrame.image, drawX - 2, drawY + drawAdjustmentY - 2, spriteDrawWidth + 4, spriteDrawHeight + 4);
-    ctx.filter = "none";
+    ctx.globalAlpha = 0.72;
+    for (const [ox, oy] of [[-1.4, 0], [1.4, 0], [0, -1.4], [0, 1.4]]) {
+      ctx.drawImage(rim, drawX + ox, drawY + drawAdjustmentY + oy, spriteDrawWidth, spriteDrawHeight);
+    }
     ctx.restore();
 
     ctx.drawImage(activeFrame.image, drawX, drawY + drawAdjustmentY, spriteDrawWidth, spriteDrawHeight);
 
     ctx.restore();
+  }
+
+  #getRimCanvas(image) {
+    const cached = this.rimCache.get(image);
+    if (cached) return cached;
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth || image.width || 1;
+    canvas.height = image.naturalHeight || image.height || 1;
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(image, 0, 0);
+    ctx.globalCompositeOperation = "source-in";
+    ctx.fillStyle = "#f5dfc7";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    this.rimCache.set(image, canvas);
+    return canvas;
   }
 
   #drawCountdown(scene) {

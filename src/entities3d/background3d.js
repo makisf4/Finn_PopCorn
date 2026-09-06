@@ -124,7 +124,7 @@ export class Background3D {
     const hillBackShape = makeHillPath(width * 0.62, 0.6);
     const hillBack = new THREE.Mesh(
       new THREE.ExtrudeGeometry(hillBackShape, { depth: 420, bevelEnabled: false }),
-      new THREE.MeshLambertMaterial({ color: 0x8ad981 })
+      new THREE.MeshLambertMaterial({ color: 0xa6d9a3 })
     );
     hillBack.position.set(width * 0.5 - width * 0.62, horizonY + 1, -780);
     hillBack.renderOrder = -1;
@@ -134,7 +134,7 @@ export class Background3D {
     const hillFrontShape = makeHillPath(width * 0.4, 0.85);
     const hillFront = new THREE.Mesh(
       new THREE.ExtrudeGeometry(hillFrontShape, { depth: 20, bevelEnabled: false }),
-      new THREE.MeshLambertMaterial({ color: 0x63c169 })
+      new THREE.MeshLambertMaterial({ color: 0x79b878 })
     );
     hillFront.position.set(width * 0.18 - width * 0.4, horizonY + 0.4, -240);
     hillFront.renderOrder = -1;
@@ -153,7 +153,7 @@ export class Background3D {
 
     const stripe = new THREE.Mesh(
       new THREE.BoxGeometry(width * 5, 10, 10),
-      new THREE.MeshStandardMaterial({ color: 0x8cdf6b, roughness: 0.9, metalness: 0 })
+      new THREE.MeshStandardMaterial({ color: 0xb9ad83, roughness: 0.95, metalness: 0 })
     );
     stripe.position.set(width * 0.5, horizonY + 5, -112);
     stripe.receiveShadow = true;
@@ -162,7 +162,7 @@ export class Background3D {
     // Grass tufts + flowers stay behind the gameplay line so nothing blocks the action.
     const tuftGeo = new THREE.ConeGeometry(0.7, 2.0, 5);
     const tuftMat = new THREE.MeshStandardMaterial({ color: 0x4fa345, roughness: 1 });
-    const tuftCount = 130;
+    const tuftCount = 72;
     const tufts = new THREE.InstancedMesh(tuftGeo, tuftMat, tuftCount);
     const tuftMatrix = new THREE.Matrix4();
     const tuftScale = new THREE.Vector3();
@@ -185,9 +185,9 @@ export class Background3D {
       color: 0xfff4f9,
       roughness: 0.55,
       emissive: 0xff9fc9,
-      emissiveIntensity: 0.35,
+      emissiveIntensity: 0.08,
     });
-    const flowerCount = 26;
+    const flowerCount = 14;
     const flowers = new THREE.InstancedMesh(flowerGeo, flowerMat, flowerCount);
     const stemGeo = new THREE.CylinderGeometry(0.14, 0.18, 2.4, 5);
     const stemMat = new THREE.MeshStandardMaterial({ color: 0x3d8a37, roughness: 1 });
@@ -211,7 +211,7 @@ export class Background3D {
     // Grass blades scattered for texture (second instanced mesh, denser).
     const bladeGeo = new THREE.ConeGeometry(0.22, 1.1, 4);
     const bladeMat = new THREE.MeshStandardMaterial({ color: 0x5cb24f, roughness: 1 });
-    const bladeCount = 380;
+    const bladeCount = 190;
     const blades = new THREE.InstancedMesh(bladeGeo, bladeMat, bladeCount);
     for (let i = 0; i < bladeCount; i += 1) {
       const gx = (i / bladeCount) * width * 1.25 - width * 0.125 + Math.sin(i * 2.71) * 5;

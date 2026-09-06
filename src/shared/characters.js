@@ -9,6 +9,8 @@ export const CHARACTERS = Object.freeze({
     front: Object.freeze([0.077, -0.038, -0.038, -0.037]),
     visHalf: Object.freeze([0.422, 0.38, 0.422, 0.38]),
     mouthOffset: 0.22,
+    effectOffset: 0.34,
+    effectLift: 0.66,
     minVisibleHalf: 0.38,
   }),
   dyno: Object.freeze({
@@ -18,6 +20,8 @@ export const CHARACTERS = Object.freeze({
     front: Object.freeze([0.012, -0.005, 0.012, -0.005]),
     visHalf: Object.freeze([0.554, 0.541, 0.552, 0.541]),
     mouthOffset: -0.18,
+    effectOffset: 0.58,
+    effectLift: 0.7,
     minVisibleHalf: 0.541,
   }),
 });

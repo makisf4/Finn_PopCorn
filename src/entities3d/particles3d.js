@@ -102,7 +102,7 @@ export class Particles3D {
       this.colors[write * 3] = color.r;
       this.colors[write * 3 + 1] = color.g;
       this.colors[write * 3 + 2] = color.b;
-      this.sizes[write] = p.size * 8;
+      this.sizes[write] = p.size * 2.2;
       this.rotations[write] = p.rotation || 0;
       this.alphas[write] = p.alpha;
       this.kinds[write] = p.shape === "ring" ? 1 : 0;

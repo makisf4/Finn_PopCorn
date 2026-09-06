@@ -48,18 +48,18 @@ body {
   top: 10px;
   left: 10px;
   z-index: 6;
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(5, max-content);
   justify-content: flex-start;
   gap: 8px;
   align-items: center;
-  width: min(calc(100% - 20px), 560px);
+  width: min(calc(100% - 20px), 680px);
   pointer-events: auto;
 }
 
 .hud-action-btn {
-  min-width: 112px;
-  min-height: 36px;
+  min-width: 92px;
+  min-height: 44px;
   border: 2px solid var(--hud-border);
   border-radius: 999px;
   padding: 4px 16px;
@@ -95,8 +95,8 @@ body {
 }
 
 .hud-pill {
-  width: clamp(112px, 19vw, 170px);
-  min-height: 36px;
+  width: clamp(112px, 16vw, 158px);
+  min-height: 44px;
   border-radius: 999px;
   border: 2px solid var(--hud-border);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), var(--hud));
@@ -120,9 +120,15 @@ body {
   color: #d95f4b;
   font-size: 0.76rem;
   font-weight: 800;
+  opacity: 0;
+  transition: opacity 100ms ease;
   text-shadow:
     0 1px 0 rgba(255, 255, 255, 0.95),
     0 2px 2px rgba(126, 41, 35, 0.2);
+}
+
+.points-award.visible {
+  opacity: 1;
 }
 
 .combo-pill[hidden] {
@@ -140,6 +146,7 @@ body {
 .value {
   font-size: 0.9rem;
   font-weight: 800;
+  font-variant-numeric: tabular-nums;
   text-shadow:
     0 1px 0 rgba(255, 255, 255, 0.95),
     0 2px 2px rgba(13, 42, 79, 0.24);
@@ -148,6 +155,38 @@ body {
 #score-value {
   font-size: 1.3rem;
   line-height: 1;
+}
+
+.miss-readout {
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+}
+
+.miss-markers {
+  display: inline-flex;
+  gap: 4px;
+}
+
+.miss-markers i {
+  width: 10px;
+  height: 10px;
+  border: 2px solid #294b75;
+  border-radius: 50%;
+  background: #fff8e8;
+}
+
+.miss-markers i.used {
+  border-color: #8b2335;
+  background: #ef6b67;
+}
+
+.last-chance {
+  color: #8b2335;
+  font-size: 0.64rem;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 #miss-value {
@@ -163,7 +202,7 @@ body {
     transform: scale(1);
   }
   55% {
-    transform: scale(1.35);
+    transform: scale(1.1);
   }
   100% {
     transform: scale(1);
@@ -306,12 +345,14 @@ body {
   background: linear-gradient(180deg, rgba(6, 21, 52, 0.58), rgba(10, 34, 78, 0.72));
   color: #ffffff;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
   transition: opacity 220ms ease;
 }
 
 .overlay.visible {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 
@@ -349,6 +390,39 @@ body {
   }
 }
 
+@media (max-width: 799px) {
+  #hud {
+    grid-template-columns: minmax(0, 1.15fr) minmax(112px, 1fr) 48px;
+    grid-template-areas:
+      "score misses pause"
+      "combo combo combo";
+    width: calc(100% - 20px);
+    gap: 6px;
+  }
+
+  #score-pill { grid-area: score; }
+  #miss-pill { grid-area: misses; }
+  #combo-pill { grid-area: combo; }
+  #pause-btn { grid-area: pause; }
+  #home-btn { display: none; }
+
+  .hud-pill {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .hud-action-btn {
+    min-width: 44px;
+    width: 44px;
+    padding-inline: 6px;
+    font-size: 0.72rem;
+  }
+
+  .combo-pill {
+    width: min(100%, 260px);
+  }
+}
+
 #milestone-banner.visible p {
   animation: milestone-pop 3s ease-out both;
 }
@@ -382,7 +456,8 @@ body {
   letter-spacing: 0.02em;
 }
 
-.overlay p {
+.pause-overlay > p,
+.quit-confirm > p {
   max-width: 36ch;
   margin: 0 auto 18px;
   font-size: 1rem;
@@ -391,6 +466,10 @@ body {
 .gameplay-ui-hidden {
   visibility: hidden;
   pointer-events: none;
+}
+
+#controls.gameplay-ui-hidden {
+  display: none;
 }
 
 #game-over-screen {
@@ -438,15 +517,23 @@ body {
 #game-over-screen h2 {
   margin: 0;
   color: #10294d;
-  font-size: clamp(2rem, 5vw, 3rem);
+  font-size: clamp(1.35rem, 3vw, 2rem);
 }
 
 #game-over-screen #final-score {
   max-width: none;
   margin: 0;
-  color: #294b75;
-  font-size: clamp(1rem, 2.6vw, 1.28rem);
-  font-weight: 750;
+  color: #10294d;
+  font-size: clamp(2.5rem, 7vw, 3.5rem);
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+#game-over-screen .final-player {
+  margin: 0;
+  color: #456386;
+  font-size: 1rem;
+  font-weight: 800;
 }
 
 .game-over-body {
@@ -837,6 +924,19 @@ body {
   box-shadow: 0 8px 16px rgba(23, 52, 110, 0.18);
 }
 
+.character-option input:checked + .character-card::after {
+  content: "✓ Selected";
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #173c73;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 900;
+}
+
 .character-emoji {
   font-size: 1.6rem;
   line-height: 1;
@@ -916,7 +1016,7 @@ body {
 
 .leaderboard ol {
   margin: 0;
-  padding-left: 22px;
+  padding: 0;
   text-align: left;
   display: grid;
   gap: 4px;
@@ -925,13 +1025,36 @@ body {
 }
 
 .leaderboard li {
+  display: grid;
+  grid-template-columns: 2ch minmax(0, 1fr) minmax(5ch, auto);
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 6px;
+  border-radius: 8px;
   font-size: 0.9rem;
   color: #183459;
+  list-style: none;
+}
+
+.leaderboard-score {
+  text-align: right;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+}
+
+.leaderboard-rank {
+  color: #6b7891;
+  font-weight: 800;
+}
+
+.leaderboard li.current-player {
+  outline: 2px solid #d89a25;
+  background: #fff3c8;
 }
 
 .leaderboard-empty {
   list-style: none;
-  margin-left: -22px;
+  margin-left: 0;
   color: rgba(24, 52, 89, 0.65);
 }
 
@@ -940,16 +1063,17 @@ body {
   min-width: 150px;
   border-radius: 999px;
   padding: 14px 20px;
-  color: #fff;
+  color: #10243f;
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 900;
   letter-spacing: 0.01em;
   background: linear-gradient(180deg, #ff9a4d, #ff624f);
   box-shadow: 0 14px 24px rgba(255, 105, 74, 0.3);
 }
 
 .primary-btn:active {
-  transform: translateY(1px) scale(0.99);
+  transform: translateY(1px) scale(0.98);
+  transition-duration: 100ms;
 }
 
 .landing-panel .primary-btn {
@@ -989,6 +1113,11 @@ body {
   filter: brightness(0.92);
 }
 
+#controls.controls-inactive {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
 @media (min-width: 900px) {
   #app {
     max-width: 1100px;
@@ -1023,6 +1152,11 @@ body {
 
   .overlay {
     transition: none;
+  }
+
+  #milestone-banner.visible p {
+    opacity: 1;
+    transform: none;
   }
 }
 
@@ -1298,7 +1432,8 @@ body {
 }
 
 .landing-panel .leaderboard ol {
-  max-height: 54px;
+  max-height: none;
+  overflow: visible;
   gap: 2px;
 }
 
@@ -1387,10 +1522,6 @@ body {
 
   .setup-fields {
     grid-template-columns: 1fr;
-  }
-
-  .entry-tip {
-    display: none;
   }
 
   .character-card {

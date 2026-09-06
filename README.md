@@ -4,6 +4,8 @@ A polished, self-contained browser game built with **HTML + CSS + JavaScript + W
 
 Finn (a cute black dog, or dinosaur) runs left and right to catch popcorn launched from a cartoon machine on the right side of the screen.
 
+The current presentation uses clean transparent run sprites, a soft stylized 2.5D world, stable mobile HUD layouts, event-driven score feedback, and matching character artwork from selection through gameplay. See [`docs/VISUAL_POLISH_QA.md`](docs/VISUAL_POLISH_QA.md) for the implemented visual-polish record and asset composites.
+
 ## Run locally
 
 ```bash
@@ -20,14 +22,14 @@ Open:
 
 ```bash
 node server.mjs
-npm test             # Node's built-in test runner, 69 tests
+npm test             # Node's built-in test runner, 68 tests
 npm run check:syntax # node --check on every source module
 npm run lint        # ESLint (no framework needed, all project rules)
 npm run test:assets # ensure runtime asset refs resolve
 npm run check:cache-version # unified cache-busting tag
 ```
 
-The manual browser smoke-test matrix is in `docs/QA_BASELINE.md`.
+The full manual browser smoke-test matrix is in `docs/QA_BASELINE.md`.
 
 ## Controls
 
@@ -46,7 +48,7 @@ The manual browser smoke-test matrix is in `docs/QA_BASELINE.md`.
 - At 4,000 points, launch speed increases by 5%; another cumulative 5% is added every 1,000 points thereafter.
 - Wave patterns alternate, cluster, sweep or add recovery instead of just rising batch counts.
 - Dog and Dinosaur are cosmetic options.
-- Game over shows score, catches, best combo, misses, wave, and time — `Play Again` immediately restarts.
+- Game over shows a prominent score plus player, catches, best streak, misses, wave, and time — `Play Again` immediately restarts.
 
 ## Renderer architecture
 
@@ -55,19 +57,32 @@ WebGL/Three.js is the primary renderer (camera, perspective, lights, shadow map,
 - `src/shared/animation.js` — facing swaps and run/idle frame choice; the horizontal mirror sign never interpolates through zero.
 - `src/shared/characters.js` — per-character baselines, visible half-widths and mouth offsets.
 - `src/shared/catch-region.js` — per-character catch rect and effect origin so catches stay fair for tail differences.
-- Canvas 2D renderer (`src/renderer2d.js`) is the documented fallback when WebGL is unavailable; it uses the same sprite frame logic plus a soft rim to keep silhouettes readable.
+- Canvas 2D renderer (`src/renderer2d.js`) is the documented fallback when WebGL is unavailable; it uses the same sprite frame logic, independent anchoring metadata, a constant-color alpha rim, and an equivalent contact shadow.
+
+## Visual and feedback behavior
+
+- Dog and dinosaur run frames are isolated on genuine transparency, cleaned of detached fragments, exported at a consistent 768×512 canvas, and aligned around stable character/ground references.
+- Direction changes remain instant horizontally and use a grounded 7% vertical squash; distance still advances the four-frame gait.
+- Catch effects and score floaters originate from character-specific front/mouth positions in both facing directions.
+- Every award has an explicit event ID, so consecutive equal-value catches and multiple awards in one update retrigger correctly.
+- Floating `+N` labels use simulation elapsed time, pause with the game, and expire after a short readable interval. The HUD owns multiplier information, including `×4 MAX`.
+- The machine recoil and launch flare are event-driven and brief. Bonus birds show a readable beneficial `BONUS` cue in both renderers.
+- Routine catches do not shake or zoom the camera. Miss shake is restrained, and the active camera no longer breathes continuously.
+- Mobile HUD space is reserved for score, three explicit miss markers, pause, and streak progress; two misses add the text “Last chance.”
 
 ## Quality settings
 
 - `Auto` lets an FPS tracker assign the effective tier.
 - `High` — shadow map 2048, bloom 0.24, particle scale 1.
 - `Low` — reduces bloom, shadow map 512, particle scale 0.4, `dprCap` 1.5.
-- `prefers-reduced-motion` disables camera shake, breathing camera motion and bloom pulses; gameplay particles are still allowed (turn squash, idle grounding).
+- `prefers-reduced-motion` disables camera movement and animated UI entrances while preserving visible milestone text and all gameplay information.
 
 ## Accessibility
 
 - Pinch zoom and zoomable viewport work.
 - Dialogs (`Start`, `Pause`, `Quit`, `Game over`) use `role="dialog"`, `aria-modal`, focus trapping and focus restoration.
+- Inactive overlays are hidden from accessibility and keyboard interaction; quit confirmation initially focuses the safe `Continue` action.
+- Primary actions use dark navy text on orange, and selection/focus/danger states include non-color cues.
 - Live regions announce countdown, score changes, misses, pause/resume, and game over.
 
 ## Leaderboard
@@ -101,7 +116,7 @@ Client uses single-mode entries (`name, score, ts, difficulty`) with Unicode-awa
 ## Testing
 
 Node's built-in test runner covers gameplay, animation, limiter, utils, nickname and quality logic.
-The manual browser smoke-test matrix is in `docs/QA_BASELINE.md`. A clean responsive set (e.g. 320×568, 390×844, 768×1024, 1366×768, wide desktop) should confirm no HUD overlap, no zero-scale facing and `Home` confirmation.
+The manual browser smoke-test matrix in `docs/QA_BASELINE.md` covers portrait, landscape, tablet, desktop, both sides of the 800px breakpoint, both characters/renderers, Low quality, reduced motion, keyboard navigation, and touch controls. Sprite export evidence is recorded separately in `docs/VISUAL_POLISH_QA.md`.
 
 ## Deployment
 

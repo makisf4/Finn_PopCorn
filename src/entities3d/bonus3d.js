@@ -1,4 +1,39 @@
 import * as THREE from "three";
+import { shouldShowBonusBirdAlert } from "../shared/gameplay.js?v=20260906-33";
+
+function makeBonusAlertSprite() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 256;
+  canvas.height = 96;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "rgba(255, 247, 230, 0.97)";
+  ctx.strokeStyle = "#10294d";
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.roundRect(8, 8, 240, 80, 40);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#ff79b8";
+  ctx.beginPath();
+  ctx.arc(48, 48, 19, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#98295e";
+  ctx.font = "900 38px Trebuchet MS, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("BONUS", 152, 50);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+  }));
+  sprite.scale.set(76, 29, 1);
+  sprite.renderOrder = 28;
+  return sprite;
+}
 
 function makeBirdMesh() {
   const group = new THREE.Group();
@@ -110,9 +145,11 @@ export class Bonus3D {
       let mesh = this.birdMeshes.get(bird);
       if (!mesh) {
         mesh = makeBirdMesh();
+        mesh.userData.alert = makeBonusAlertSprite();
         mesh.scale.set(bird.w * 0.9, bird.h * 1.4, bird.w * 0.7);
         this.birdMeshes.set(bird, mesh);
         this.group.add(mesh);
+        this.group.add(mesh.userData.alert);
       }
       mesh.position.set(bird.x, sceneH - bird.y, 0);
       mesh.rotation.y = bird.vx >= 0 ? 0 : Math.PI;
@@ -122,9 +159,16 @@ export class Bonus3D {
         wings[0].rotation.x = -flap;
         wings[1].rotation.x = flap;
       }
+      mesh.userData.alert.visible = shouldShowBonusBirdAlert(bird);
+      mesh.userData.alert.position.set(bird.x, sceneH - bird.y + bird.h * 1.45, 4);
     }
     for (const [bird, mesh] of this.birdMeshes) {
       if (!seenBirds.has(bird)) {
+        if (mesh.userData.alert) {
+          this.group.remove(mesh.userData.alert);
+          mesh.userData.alert.material.map.dispose();
+          mesh.userData.alert.material.dispose();
+        }
         this.group.remove(mesh);
         mesh.traverse((n) => n.geometry && n.geometry.dispose());
         this.birdMeshes.delete(bird);

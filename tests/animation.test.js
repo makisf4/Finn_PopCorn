@@ -24,7 +24,7 @@ test("updateFacing swaps mirror immediately", () => {
 
 test("initial swap applies a squash", () => {
   const swap = updateFacing({ facing: -1, progress: 1 }, 1, 0);
-  assert.equal(swap.squash, 0.86);
+  assert.ok(Math.abs(swap.squash - 0.93) < 0.001);
 });
 
 test("full turn converges back to scale 1", () => {

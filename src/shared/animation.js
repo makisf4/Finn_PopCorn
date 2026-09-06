@@ -23,11 +23,12 @@ export function advanceFacing(state, targetFacing, dt) {
   return current;
 }
 
-// Vertical squash envelope: ~0.86 at turn start, eases back to 1.
+// Vertical squash envelope: a restrained 7% compression at turn start.
+// The renderers anchor this at the feet so direction changes stay grounded.
 export function facingSquash(state) {
   const p = Math.min(1, Math.max(0, state.progress));
   const lift = Math.pow(1 - p, 2.2);
-  return 1 - 0.14 * lift;
+  return 1 - 0.07 * lift;
 }
 
 export function updateFacing(state, targetFacing, dt) {

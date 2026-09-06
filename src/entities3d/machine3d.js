@@ -69,14 +69,14 @@ export class Machine3D {
     this.group.clear();
     this.wheels = [];
 
-    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe9b545, roughness: 0.35, metalness: 0.25 });
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0xe9b545, roughness: 0.58, metalness: 0.08 });
     const cartMat = new THREE.MeshStandardMaterial({ map: makeCartTexture(), roughness: 0.55 });
     const glassMat = new THREE.MeshPhysicalMaterial({
       color: 0xffffff,
-      roughness: 0.08,
+      roughness: 0.18,
       metalness: 0,
       transparent: true,
-      opacity: 0.28,
+      opacity: 0.34,
     });
 
     // Cart body (striped red/cream).
@@ -164,7 +164,7 @@ export class Machine3D {
     const nozzleGroup = new THREE.Group();
     const nozzleBody = new THREE.Mesh(
       new THREE.CylinderGeometry(0.09, 0.11, 0.3, 14),
-      new THREE.MeshStandardMaterial({ color: 0x9ca8bf, metalness: 0.7, roughness: 0.35 })
+      new THREE.MeshStandardMaterial({ color: 0xc7a86b, metalness: 0.18, roughness: 0.52 })
     );
     nozzleBody.rotation.z = Math.PI / 2;
     nozzleBody.position.x = -0.15;
@@ -172,7 +172,7 @@ export class Machine3D {
     nozzleGroup.add(nozzleBody);
     const ring = new THREE.Mesh(
       new THREE.TorusGeometry(0.1, 0.02, 8, 18),
-      new THREE.MeshStandardMaterial({ color: 0xf6d782, metalness: 0.8, roughness: 0.25 })
+      new THREE.MeshStandardMaterial({ color: 0xf0c978, metalness: 0.2, roughness: 0.46 })
     );
     ring.rotation.y = Math.PI / 2;
     ring.position.x = -0.31;
@@ -213,7 +213,7 @@ export class Machine3D {
     this.group.position.set(machine.x, sceneH - machine.y - h, 0);
     this.group.scale.set(w, h, Math.max(34, w * 0.74));
 
-    const piston = Math.sin(time * 14) * 0.012 + machine.firePulse * 0.09;
+    const piston = Math.sin((1 - machine.firePulse) * Math.PI) * machine.firePulse * 0.09;
     if (this.launcher) {
       // Compensate for the machine's non-uniform X/Y scale so the on-screen
       // barrel angle matches the 2D renderer and trajectory.
@@ -222,7 +222,7 @@ export class Machine3D {
       this.launcher.rotation.z = -localAngle;
       this.launcher.position.x = 0.05 + piston;
     }
-    const flare = Math.min(1, machine.firePulse * 0.9);
+    const flare = THREE.MathUtils.clamp((machine.firePulse - 0.35) / 0.65, 0, 1);
     if (this.flare) {
       this.flare.scale.setScalar(Math.max(0.001, flare * 2.4));
     }

@@ -14,11 +14,13 @@ export function computeCatchRect(x, y, width, facing, char) {
   };
 }
 
-export function computeEffectPoint(x, y, width, facing) {
+export function computeEffectPoint(x, y, width, facing, char = null) {
   const side = facing >= 0 ? 1 : -1;
+  const offset = Number.isFinite(char?.effectOffset) ? char.effectOffset : 0.28;
+  const lift = Number.isFinite(char?.effectLift) ? char.effectLift : 0.66;
   return {
-    x: x + side * width * 0.28,
-    y: y - width * 0.66,
+    x: x + side * width * offset,
+    y: y - width * lift,
   };
 }
 

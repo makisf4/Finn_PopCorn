@@ -1,4 +1,4 @@
-import { Game } from "./game.js?v=20260903-32";
+import { Game } from "./game.js?v=20260906-33";
 
 const byId = (id) => document.getElementById(id);
 
@@ -37,6 +37,8 @@ const game = new Game({
   canvas: byId("game-canvas"),
   scoreValue: byId("score-value"),
   missValue: byId("miss-value"),
+  missMarkers: byId("miss-markers"),
+  lastChance: byId("last-chance"),
   comboPill: byId("combo-pill"),
   comboValue: byId("combo-value"),
   pointsAward: byId("points-award"),
@@ -49,6 +51,7 @@ const game = new Game({
   playBtn: byId("play-btn"),
   restartBtn: byId("restart-btn"),
   finalScore: byId("final-score"),
+  finalPlayer: byId("final-player"),
   homeBtn: byId("home-btn"),
   milestoneBanner: byId("milestone-banner"),
   milestoneText: byId("milestone-text"),

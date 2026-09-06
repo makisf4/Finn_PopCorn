@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>Finn The Dyno PopCorn King</title>
-    <link rel="stylesheet" href="./styles.css?v=20260903-32" />
+    <link rel="stylesheet" href="./styles.css?v=20260906-33" />
   </head>
   <body>
     <div id="app">
@@ -20,11 +20,15 @@
           </div>
           <div class="hud-pill" id="miss-pill">
             <span class="label">Misses</span>
-            <span id="miss-value" class="value">0 / 3</span>
+            <span class="miss-readout">
+              <span id="miss-markers" class="miss-markers" aria-hidden="true"><i></i><i></i><i></i></span>
+              <span id="miss-value" class="sr-only">0 / 3</span>
+              <span id="last-chance" class="last-chance" hidden>Last chance</span>
+            </span>
           </div>
-          <div class="hud-pill combo-pill" id="combo-pill" aria-label="Catch combo multiplier" hidden>
-            <span class="label">Combo</span>
-            <span id="combo-value" class="value" aria-live="polite">×1</span>
+          <div class="hud-pill combo-pill" id="combo-pill" aria-label="Catch streak multiplier">
+            <span class="label">Streak</span>
+            <span id="combo-value" class="value" aria-live="polite">0/5 → ×2</span>
           </div>
           <button id="pause-btn" class="hud-action-btn" aria-label="Pause game" type="button">Pause</button>
           <button id="home-btn" class="hud-action-btn" type="button" aria-label="Quit current game and return home" hidden>Home</button>
@@ -40,10 +44,10 @@
               </div>
               <img
                 class="landing-hero-art"
-                src="./assets/sprites/finn-popcorn-hero.webp"
-                alt="Finn the friendly green dinosaur joyfully juggling popcorn"
-                width="1214"
-                height="1295"
+                src="./assets/sprites/finn-dyno-idle-v2.webp"
+                alt="Finn the friendly green dinosaur, matching the playable character"
+                width="768"
+                height="512"
                 decoding="async"
               />
             </header>
@@ -67,7 +71,7 @@
                     aria-describedby="nickname-tip"
                     placeholder="Choose a nickname"
                   />
-                  <p id="nickname-tip" class="entry-tip">Max 10 characters.</p>
+                  <p id="nickname-tip" class="entry-tip">Letters and spaces only · max 10 characters.</p>
                   <p id="name-error" class="name-error" aria-live="polite"></p>
                 </div>
 
@@ -80,20 +84,20 @@
                     <label class="character-option">
                       <input type="radio" name="character" value="dog" checked />
                       <span class="character-card">
-                        <img src="./assets/sprites/finn-dog-3d.webp" alt="" width="768" height="512" />
+                        <img src="./assets/sprites/finn-dog-3d-idle.webp" alt="" width="768" height="512" />
                         <span class="character-card-copy">
                           <span class="character-name">Dog</span>
-                          <span class="character-desc">Fast, furry Finn</span>
+                          <span class="character-desc">Bright-eyed and eager</span>
                         </span>
                       </span>
                     </label>
                     <label class="character-option">
                       <input type="radio" name="character" value="dyno" />
                       <span class="character-card">
-                        <img src="./assets/sprites/finn-dyno-3d.webp" alt="" width="768" height="512" />
+                        <img src="./assets/sprites/finn-dyno-idle-v2.webp" alt="" width="768" height="512" />
                         <span class="character-card-copy">
                           <span class="character-name">Dinosaur</span>
-                          <span class="character-desc">The original Dyno</span>
+                          <span class="character-desc">Bold, cheerful original</span>
                         </span>
                       </span>
                     </label>
@@ -111,7 +115,7 @@
             </aside>
 
             <section class="quick-guide" aria-label="How to play">
-              <span><strong>Move</strong> Arrow keys or touch</span>
+              <span><strong>Move</strong> Hold left or right; Arrow keys or A/D</span>
               <span><strong>Catch</strong> Popcorn and bonus candy</span>
               <span><strong>Survive</strong> Keep misses below three</span>
             </section>
@@ -123,7 +127,8 @@
             <header class="game-over-header">
               <p class="game-over-kicker">Run complete</p>
               <h2>Game Over</h2>
-              <p id="final-score">Final Score: 0</p>
+              <p id="final-score" aria-label="Final score">0</p>
+              <p id="final-player" class="final-player">Player</p>
             </header>
 
             <div class="game-over-body">
@@ -131,7 +136,7 @@
                 <h3>Run summary</h3>
                 <dl>
                   <div class="run-stat"><dt>Popcorn caught</dt><dd id="run-caught">0</dd></div>
-                  <div class="run-stat"><dt>Best combo</dt><dd id="run-best-combo">0</dd></div>
+                  <div class="run-stat"><dt>Best streak</dt><dd id="run-best-combo">0</dd></div>
                   <div class="run-stat"><dt>Misses</dt><dd id="run-misses">0</dd></div>
                   <div class="run-stat"><dt>Wave reached</dt><dd id="run-wave">Pair</dd></div>
                   <div class="run-stat"><dt>Run time</dt><dd id="run-time">0.0s</dd></div>
@@ -171,7 +176,7 @@
           </div>
         </section>
         <section id="first-run-overlay" class="overlay first-run" role="status" aria-live="polite" aria-label="How to move">
-          <p id="first-run-text">Use ← / → or A / D to move. Catch the popcorn!</p>
+          <p id="first-run-text">Hold ← / →, A / D, or a touch button to move.</p>
         </section>
         <div id="game-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
       </main>
@@ -190,6 +195,6 @@
         }
       }
     </script>
-    <script type="module" src="./src/main.js?v=20260903-32"></script>
+    <script type="module" src="./src/main.js?v=20260906-33"></script>
   </body>
 </html>

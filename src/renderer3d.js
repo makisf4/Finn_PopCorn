@@ -7,15 +7,15 @@ import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
 import { Background3D, makeSkyTexture } from "./entities3d/background3d.js";
 import { Machine3D } from "./entities3d/machine3d.js";
 import { Popcorns3D } from "./entities3d/popcorn3d.js";
-import { Dog3D } from "./entities3d/dog3d.js?v=20260903-32";
-import { Dyno3D } from "./entities3d/dyno3d.js?v=20260903-32";
+import { Dog3D } from "./entities3d/dog3d.js?v=20260906-33";
+import { Dyno3D } from "./entities3d/dyno3d.js?v=20260906-33";
 import { Bonus3D } from "./entities3d/bonus3d.js";
 import { Particles3D } from "./entities3d/particles3d.js";
 import { Overlay2D } from "./entities3d/overlay2d.js";
 import { ScoreFloaters3D } from "./entities3d/scorefloaters3d.js";
 import { DustMotes3D } from "./entities3d/dustmotes3d.js";
 
-import { getQuality, computeAutoQuality } from "./shared/quality.js?v=20260903-32";
+import { getQuality, computeAutoQuality } from "./shared/quality.js?v=20260906-33";
 
 const FOV_DEG = 50;
 
@@ -85,8 +85,6 @@ export class Renderer3D {
     this.shakeY = 0;
     this.baseCamX = 0;
     this.baseCamY = 0;
-    this._catchShake = 0;
-    this._lastAwardedPoints = 0;
   }
 
   #setupLights() {
@@ -164,19 +162,7 @@ export class Renderer3D {
     this.bloom.strength = effectiveBloom;
     if (scene.dt) this.#trackFps(scene.dt);
 
-    // Shake from misses plus a subtle punch on catches — disabled under
-    // prefers-reduced-motion.
-    let shake = reducedMotion ? 0 : scene.shake;
-    if (!reducedMotion && scene.lastAwardedPoints > 0 && scene.lastAwardedPoints !== this._lastAwardedPoints) {
-      this._catchShake = Math.min(6, 2 + scene.lastAwardedPoints * 0.12);
-    }
-    this._lastAwardedPoints = scene.lastAwardedPoints;
-    if (this._catchShake > 0.01) {
-      shake = Math.max(shake, this._catchShake);
-      this._catchShake *= 0.82;
-    } else {
-      this._catchShake = 0;
-    }
+    const shake = reducedMotion ? 0 : scene.shake;
 
     if (shake > 0.01) {
       this.shakeX = (Math.random() - 0.5) * shake * 2;
@@ -186,12 +172,7 @@ export class Renderer3D {
       this.shakeY = 0;
     }
 
-    // Camera punch: slight zoom-in on catch, drift suppressed for reduced
-    // motion.
-    const catchPunch = reducedMotion ? 0 : this._catchShake * 2.2;
-    const breathe = reducedMotion ? 0 : Math.sin(scene.time * 0.5) * 3;
-    const targetDist = this.cameraDistance - catchPunch - breathe;
-    this.camera.position.set(this.cx + this.shakeX, this.cy - this.shakeY, targetDist);
+    this.camera.position.set(this.cx + this.shakeX, this.cy - this.shakeY, this.cameraDistance);
     this.camera.lookAt(this.cx + this.shakeX, this.cy - this.shakeY, 0);
 
     this.background.update(reducedMotion ? 0 : scene.time);
@@ -206,7 +187,7 @@ export class Renderer3D {
     }
     this.bonus.update(scene, this.height);
     this.particles.update(scene, this.height);
-    this.scoreFloaters.update(scene, this.height);
+    this.scoreFloaters.update(scene, this.height, scene.dt);
     this.dustMotes.update(reducedMotion ? 0 : scene.time);
     this.overlay.render(scene);
 

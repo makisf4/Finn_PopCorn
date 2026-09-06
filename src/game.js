@@ -1,6 +1,6 @@
-import { AudioManager } from "./audio.js?v=20260903-32";
-import { InputManager } from "./input.js?v=20260903-32";
-import { Renderer } from "./renderer.js?v=20260903-32";
+import { AudioManager } from "./audio.js?v=20260906-33";
+import { InputManager } from "./input.js?v=20260906-33";
+import { Renderer } from "./renderer.js?v=20260906-33";
 import {
   bonusDropXRange,
   ACTIVE_POPCORN_CAP,
@@ -14,12 +14,12 @@ import {
   getDifficultyPreset,
   getCountdownNumber,
   getScoreSpeedMultiplier,
-} from "./shared/gameplay.js?v=20260903-32";
+} from "./shared/gameplay.js?v=20260906-33";
 import {
   resolveLandingRange,
   resolveZoneFraction,
   selectWavePattern,
-} from "./shared/waves.js?v=20260903-32";
+} from "./shared/waves.js?v=20260906-33";
 import {
   clamp,
   circleRectCollision,
@@ -34,14 +34,14 @@ import {
   normalizeName,
   isAllowedName,
   normalizeNameKey,
-} from "./shared/nickname.js?v=20260903-32";
-import { characterForId } from "./shared/characters.js?v=20260903-32";
+} from "./shared/nickname.js?v=20260906-33";
+import { characterForId } from "./shared/characters.js?v=20260906-33";
 import {
   computeCatchRect,
   computeEffectPoint,
   extendCatchRectToGround,
-} from "./shared/catch-region.js?v=20260903-32";
-import { trapFocus } from "./shared/focus.js?v=20260903-32";
+} from "./shared/catch-region.js?v=20260906-33";
+import { trapFocus } from "./shared/focus.js?v=20260906-33";
 
 export class Game {
   constructor(elements) {
@@ -50,6 +50,8 @@ export class Game {
     this.canvas = elements.canvas;
     this.scoreValue = elements.scoreValue;
     this.missValue = elements.missValue;
+    this.missMarkers = elements.missMarkers;
+    this.lastChance = elements.lastChance;
     this.comboPill = elements.comboPill;
     this.comboValue = elements.comboValue;
     this.pointsAward = elements.pointsAward;
@@ -62,6 +64,7 @@ export class Game {
     this.playBtn = elements.playBtn;
     this.restartBtn = elements.restartBtn;
     this.finalScore = elements.finalScore;
+    this.finalPlayer = elements.finalPlayer;
     this.homeBtn = elements.homeBtn;
     this.homeEndBtn = elements.homeEndBtn;
     this.pauseEndBtn = elements.pauseEndBtn;
@@ -118,6 +121,9 @@ export class Game {
     this.misses = 0;
     this.catchStreak = 0;
     this.lastAwardedPoints = 0;
+    this.awardEvents = [];
+    this.nextAwardId = 1;
+    this.pointsAwardTimer = 0;
     this.difficulty = DEFAULT_DIFFICULTY;
     this.characterStorageKey = "finn_popcorn_character_v1";
     this.character = this.#loadCharacter();
@@ -128,7 +134,7 @@ export class Game {
     this.waveName = "";
     this.escapedGrace = 0;
     this.maxActivePopcorns = 0;
-    this.bestCombo = 1;
+    this.bestCombo = 0;
     this.totalCatches = 0;
     this.balanceMetrics = { enabled: false };
     this.reducedMotion = prefersReducedMotion();
@@ -237,6 +243,10 @@ export class Game {
     this.#bindUiEvents();
     this.#resize();
     this.#updateHud();
+    this.#setGameplayUiHidden(true);
+    for (const overlay of [this.startScreen, this.gameOverScreen, this.pauseScreen, this.quitConfirmEl]) {
+      this.#setOverlayVisible(overlay, overlay?.classList.contains("visible"));
+    }
     this.#hydrateLastPlayerName();
     this.#renderLeaderboards();
     this.focusTrapHandle = trapFocus(this.startScreen);
@@ -353,7 +363,7 @@ export class Game {
   #showFirstRunIfFirst() {
     if (this.firstRunCompleted || !this.firstRunOverlay) return;
     this.firstRunOverlay.classList.add("visible");
-    if (this.firstRunText) this.firstRunText.textContent = "Use ← / →, A / D or touch to move.";
+    if (this.firstRunText) this.firstRunText.textContent = "Hold ← / →, A / D, or a touch button to move.";
   }
 
   #completeTutorial() {
@@ -386,8 +396,8 @@ export class Game {
     this.state = "countdown";
     this.countdownElapsed = 0;
     this.input.clearHeldInput();
-    this.startScreen.classList.remove("visible");
-    this.gameOverScreen.classList.remove("visible");
+    this.#setOverlayVisible(this.startScreen, false);
+    this.#setOverlayVisible(this.gameOverScreen, false);
     this.#setGameplayUiHidden(false);
     if (this.focusTrapHandle) {
       this.focusTrapHandle.release();
@@ -405,13 +415,15 @@ export class Game {
     this.misses = 0;
     this.catchStreak = 0;
     this.lastAwardedPoints = 0;
+    this.awardEvents.length = 0;
+    this.pointsAwardTimer = 0;
     this.batchIndex = 0;
     this.gameOverElapsed = 0;
     this.gameOverFxTimer = 0;
     this.waveName = "Pair";
     this.escapedGrace = DIFFICULTY_PRESETS[this.difficulty].escapedGrace;
     this.maxActivePopcorns = 0;
-    this.bestCombo = 1;
+    this.bestCombo = 0;
     this.totalCatches = 0;
     this.popcorns.length = 0;
     this.bonusBirds.length = 0;
@@ -446,14 +458,15 @@ export class Game {
     this.#hideMilestoneBanner();
     if (this.firstRunOverlay) this.firstRunOverlay.classList.remove("visible");
     this.#hidePauseOverlay();
-    this.shake = Math.max(this.shake, 14);
+    this.shake = Math.max(this.shake, 3.5);
 
     const charMeta = characterForId(this.character);
     const effectPoint = computeEffectPoint(
       this.dog.x,
       this.dog.y,
       this.dog.w,
-      this.dog.facing
+      this.dog.facing,
+      charMeta
     );
     this.#spawnParticles(effectPoint.x, effectPoint.y, {
       count: 30,
@@ -471,18 +484,15 @@ export class Game {
     const caught = this.#countCatches();
     if (this.runCaughtEl) this.runCaughtEl.textContent = String(caught);
     if (this.runMissesEl) this.runMissesEl.textContent = formatMisses(this.misses, this.maxMisses);
-    if (this.runBestComboEl) this.runBestComboEl.textContent = String(Math.max(this.bestCombo || 1, 1));
+    if (this.runBestComboEl) this.runBestComboEl.textContent = String(this.bestCombo || 0);
     if (this.runWaveEl) this.runWaveEl.textContent = this.waveName || "Pair";
     if (this.runCharacterEl) this.runCharacterEl.textContent = charMeta.label;
     if (this.runTimeEl) this.runTimeEl.textContent = `${this.#gameElapsedSeconds().toFixed(1)}s`;
-    if (this.activePlayerName) {
-      this.finalScore.textContent = `Final Score: ${this.score} — ${this.activePlayerName}`;
-    } else {
-      this.finalScore.textContent = `Final Score: ${this.score}`;
-    }
+    this.finalScore.textContent = String(this.score);
+    if (this.finalPlayer) this.finalPlayer.textContent = this.activePlayerName || "Player";
 
     this.#setGameplayUiHidden(true);
-    this.gameOverScreen.classList.add("visible");
+    this.#setOverlayVisible(this.gameOverScreen, true);
     if (this.focusTrapHandle) {
       this.focusTrapHandle.release();
     }
@@ -508,7 +518,7 @@ export class Game {
     }
 
     // Reset per-run counters for the next session.
-    this.bestCombo = 1;
+    this.bestCombo = 0;
   }
 
   #showStartScreen() {
@@ -516,9 +526,9 @@ export class Game {
     this.countdownElapsed = 0;
     this.input.clearHeldInput();
     this.#setPauseButtonState(false);
-    this.startScreen.classList.add("visible");
-    this.gameOverScreen.classList.remove("visible");
-    this.#setGameplayUiHidden(false);
+    this.#setOverlayVisible(this.startScreen, true);
+    this.#setOverlayVisible(this.gameOverScreen, false);
+    this.#setGameplayUiHidden(true);
     this.#hidePauseOverlay();
     if (this.focusTrapHandle) {
       this.focusTrapHandle.release();
@@ -568,11 +578,14 @@ export class Game {
       this.focusTrapHandle = null;
     }
     if (this.quitConfirmEl) {
-      this.quitConfirmEl.classList.add("visible");
+      this.#setOverlayVisible(this.quitConfirmEl, true);
       this.focusTrapHandle = trapFocus(this.quitConfirmEl);
-      this.quitConfirmOk.focus();
+      this.quitConfirmCancel.focus();
     }
-    if (this.pauseScreen) this.pauseScreen.classList.add("dimmed");
+    if (this.pauseScreen) {
+      this.pauseScreen.classList.add("dimmed");
+      this.pauseScreen.inert = true;
+    }
   }
 
   #confirmQuitToHome() {
@@ -584,7 +597,7 @@ export class Game {
       this.focusTrapHandle.release();
       this.focusTrapHandle = null;
     }
-    if (this.quitConfirmEl) this.quitConfirmEl.classList.remove("visible");
+    this.#setOverlayVisible(this.quitConfirmEl, false);
     if (this.pauseScreen) this.pauseScreen.classList.remove("dimmed");
     this.#quitToHome();
   }
@@ -599,8 +612,11 @@ export class Game {
       this.focusTrapHandle.release();
       this.focusTrapHandle = null;
     }
-    if (this.quitConfirmEl) this.quitConfirmEl.classList.remove("visible");
-    if (this.pauseScreen) this.pauseScreen.classList.remove("dimmed");
+    this.#setOverlayVisible(this.quitConfirmEl, false);
+    if (this.pauseScreen) {
+      this.pauseScreen.classList.remove("dimmed");
+      this.pauseScreen.inert = false;
+    }
     if (returnState === "playing" && this.state === "paused") {
       this.#togglePause();
     } else if (returnState === "countdown" && this.state === "paused") {
@@ -759,8 +775,15 @@ export class Game {
     }
 
     this.#updateParticles(dt);
-    this.machine.firePulse = Math.max(0, this.machine.firePulse - dt * 2.9);
+    this.machine.firePulse = Math.max(0, this.machine.firePulse - dt * 6.7);
     this.shake = Math.max(0, this.shake - dt * 24);
+    if (this.pointsAwardTimer > 0) {
+      this.pointsAwardTimer = Math.max(0, this.pointsAwardTimer - dt);
+      if (this.pointsAwardTimer === 0 && this.pointsAward) {
+        this.pointsAward.textContent = "";
+        this.pointsAward.classList.remove("visible");
+      }
+    }
   }
 
   #updateDog(dt) {
@@ -980,8 +1003,9 @@ export class Game {
   }
 
   #handleBonusCatch(drop) {
-    this.lastAwardedPoints = drop.points || this.bonusLollipopPoints;
-    this.score += this.lastAwardedPoints;
+    const points = drop.points || this.bonusLollipopPoints;
+    this.#recordAward(points, "bonus");
+    this.score += points;
     this.dog.chewTimer = this.dog.chewDuration;
     this.audio.catch();
     this.audio.yeah();
@@ -1054,12 +1078,10 @@ export class Game {
     this.totalCatches = (this.totalCatches || 0) + 1;
     const basePoints = popcorn.points || 5;
     const points = getAwardedCatchPoints(basePoints, this.catchStreak);
-    this.lastAwardedPoints = points;
+    const effect = this.#recordAward(points, "catch");
     this.score += points;
     this.dog.chewTimer = this.dog.chewDuration;
     const scoreFactor = clamp(points / 5, 1, 2.4);
-
-    const effect = computeEffectPoint(this.dog.x, this.dog.y, this.dog.w, this.dog.facing);
 
     this.#spawnParticles(effect.x, effect.y, {
       count: Math.round(9 + scoreFactor * 6),
@@ -1102,7 +1124,8 @@ export class Game {
     this.escapedGrace = Math.max(this.escapedGrace - 1, 0);
     this.catchStreak = 0;
     this.lastAwardedPoints = 0;
-    this.shake = Math.max(this.shake, 8);
+    this.pointsAwardTimer = 0;
+    this.shake = Math.max(this.shake, 3.5);
 
     this.#spawnParticles(popcorn.x, this.groundY - 5, {
       count: 10,
@@ -1317,20 +1340,54 @@ export class Game {
     }
   }
 
+  #recordAward(points, kind) {
+    this.lastAwardedPoints = points;
+    this.pointsAwardTimer = 0.82;
+    const effect = computeEffectPoint(
+      this.dog.x,
+      this.dog.y,
+      this.dog.w,
+      this.dog.facing,
+      characterForId(this.character)
+    );
+    this.awardEvents.push({
+      id: this.nextAwardId,
+      points,
+      kind,
+      x: effect.x,
+      y: effect.y,
+    });
+    this.nextAwardId += 1;
+    if (this.awardEvents.length > 12) {
+      this.awardEvents.splice(0, this.awardEvents.length - 12);
+    }
+    return effect;
+  }
+
   #updateHud(scorePop = false) {
     this.maxActivePopcorns = Math.max(this.maxActivePopcorns, this.popcorns.length);
     this.scoreValue.textContent = String(this.score);
     this.missValue.textContent = formatMisses(this.misses, this.maxMisses);
+    if (this.missMarkers) {
+      Array.from(this.missMarkers.children).forEach((marker, index) => {
+        marker.classList.toggle("used", index < this.misses);
+      });
+    }
+    if (this.lastChance) this.lastChance.hidden = this.misses !== this.maxMisses - 1;
     this.audio.setIntensity(clamp(this.score / 500, 0, 1));
     const comboMultiplier = getComboMultiplier(this.catchStreak);
-    if (this.comboPill) {
-      this.comboPill.hidden = comboMultiplier === 1;
-    }
     if (this.comboValue) {
-      this.comboValue.textContent = `×${comboMultiplier}`;
+      if (comboMultiplier === 4) {
+        this.comboValue.textContent = "×4 MAX";
+      } else {
+        const nextThreshold = comboMultiplier === 1 ? 5 : comboMultiplier === 2 ? 10 : 18;
+        this.comboValue.textContent = `${this.catchStreak}/${nextThreshold} → ×${comboMultiplier + 1}`;
+      }
     }
     if (this.pointsAward) {
-      this.pointsAward.textContent = this.lastAwardedPoints > 0 ? `+${this.lastAwardedPoints}` : "";
+      const showAward = this.pointsAwardTimer > 0 && this.lastAwardedPoints > 0;
+      this.pointsAward.textContent = showAward ? `+${this.lastAwardedPoints}` : "";
+      this.pointsAward.classList.toggle("visible", showAward);
     }
     if (scorePop) {
       this.scoreValue.classList.remove("pop");
@@ -1382,8 +1439,7 @@ export class Game {
     if (reachedMilestone <= 0 || reachedMilestone === this.lastMilestoneScore) return;
 
     this.lastMilestoneScore = reachedMilestone;
-    const playerName = this.activePlayerName || "Player";
-    this.#showMilestoneBanner(`Keep it up, ${playerName}!`);
+    this.#showMilestoneBanner(`${reachedMilestone} points!`);
     this.audio.yeah();
   }
 
@@ -1463,6 +1519,7 @@ export class Game {
       shake,
       reducedMotion: this.reducedMotion,
       lastAwardedPoints: this.lastAwardedPoints,
+      awardEvents: this.awardEvents,
       catchStreak: this.catchStreak,
       milestoneBannerTimer: this.milestoneBannerTimer,
       character: this.character,
@@ -1765,11 +1822,11 @@ export class Game {
   }
 
   #renderLeaderboards() {
-    this.#renderLeaderboardList(this.leaderboardListStart);
+    this.#renderLeaderboardList(this.leaderboardListStart, 3);
     this.#renderLeaderboardList(this.leaderboardListOver);
   }
 
-  #renderLeaderboardList(target) {
+  #renderLeaderboardList(target, limit = this.maxLeaderboardEntries) {
     if (!target) return;
     target.textContent = "";
 
@@ -1781,9 +1838,21 @@ export class Game {
       return;
     }
 
-    for (const entry of this.leaderboardEntries) {
+    for (const [index, entry] of this.leaderboardEntries.slice(0, limit).entries()) {
       const item = document.createElement("li");
-      item.textContent = `${entry.name} — ${entry.score}`;
+      if (this.activePlayerName && normalizeNameKey(entry.name) === normalizeNameKey(this.activePlayerName)) {
+        item.classList.add("current-player");
+      }
+      const rank = document.createElement("span");
+      rank.className = "leaderboard-rank";
+      rank.textContent = String(index + 1);
+      const name = document.createElement("span");
+      name.className = "leaderboard-name";
+      name.textContent = entry.name;
+      const score = document.createElement("span");
+      score.className = "leaderboard-score";
+      score.textContent = String(entry.score);
+      item.append(rank, name, score);
       target.append(item);
     }
   }
@@ -1850,7 +1919,8 @@ export class Game {
 
   #showPauseOverlay() {
     if (!this.pauseScreen) return;
-    this.pauseScreen.classList.add("visible");
+    this.#setOverlayVisible(this.pauseScreen, true);
+    this.controls?.classList.add("controls-inactive");
     if (this.focusTrapHandle) {
       this.focusTrapHandle.release();
     }
@@ -1859,10 +1929,18 @@ export class Game {
 
   #hidePauseOverlay() {
     if (!this.pauseScreen) return;
-    this.pauseScreen.classList.remove("visible");
+    this.#setOverlayVisible(this.pauseScreen, false);
+    this.controls?.classList.remove("controls-inactive");
     if (this.focusTrapHandle) {
       this.focusTrapHandle.release();
       this.focusTrapHandle = null;
     }
+  }
+
+  #setOverlayVisible(element, visible) {
+    if (!element) return;
+    element.classList.toggle("visible", visible);
+    element.inert = !visible;
+    element.setAttribute("aria-hidden", String(!visible));
   }
 }

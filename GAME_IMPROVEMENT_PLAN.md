@@ -1,5 +1,12 @@
 # Finn The Dyno PopCorn King — Implementation Roadmap
 
+> **Historical document — not the current implementation inventory.** This
+> roadmap describes the project as inspected on 2026-09-01 and several statements
+> below are intentionally preserved as planning history. For the current visual,
+> feedback, HUD, accessibility, and renderer changes, use
+> [`docs/VISUAL_POLISH_QA.md`](docs/VISUAL_POLISH_QA.md), the source code, and
+> [`docs/QA_BASELINE.md`](docs/QA_BASELINE.md).
+
 Date: 2026-09-01. Basis: read of `src/`, `index.html`, `styles.css`, `server.mjs`, `api/leaderboard.js`, `data/leaderboard.json`. Only this file was modified; no commit was made.
 
 ## Guard rails

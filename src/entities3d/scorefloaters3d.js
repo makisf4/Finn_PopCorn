@@ -45,21 +45,19 @@ export class ScoreFloaters3D {
     this.group = new THREE.Group();
     this.pool = [];
     this.active = [];
-    this.lastPoints = 0;
-    this.lastStreak = 0;
+    this.lastEventId = 0;
   }
 
-  update(scene, sceneH) {
-    // Trigger when a new award happens (points jump).
-    if (scene.lastAwardedPoints > 0 && scene.lastAwardedPoints !== this.lastPoints) {
-      this.spawn(scene, sceneH);
+  update(scene, sceneH, dt = 0) {
+    for (const event of scene.awardEvents || []) {
+      if (event.id > this.lastEventId) this.spawn(event, sceneH);
+      this.lastEventId = Math.max(this.lastEventId, event.id);
     }
-    this.lastPoints = scene.lastAwardedPoints;
 
-    const dt = 0.016;
+    const elapsed = scene.state === "paused" ? 0 : Math.max(0, dt || 0);
     for (let i = this.active.length - 1; i >= 0; i -= 1) {
       const f = this.active[i];
-      f.life -= dt;
+      f.life -= elapsed;
       if (f.life <= 0) {
         this.group.remove(f.sprite);
         f.sprite.material.map.dispose();
@@ -79,15 +77,12 @@ export class ScoreFloaters3D {
     }
   }
 
-  spawn(scene, sceneH) {
-    const points = scene.lastAwardedPoints;
-    const streak = scene.catchStreak;
-    const dog = scene.dog;
-    const isCombo = streak >= 5;
-    const label = isCombo ? `+${points} x${Math.min(3, Math.floor(streak / 5) + 1)}` : `+${points}`;
-    const worldHeight = isCombo ? 52 : 42;
-    const fill = isCombo ? "#ffe86b" : "#ffffff";
-    const stroke = isCombo ? "rgba(120, 60, 0, 0.95)" : "rgba(7, 24, 56, 0.9)";
+  spawn(event, sceneH) {
+    const label = `+${event.points}`;
+    const isBonus = event.kind === "bonus";
+    const worldHeight = isBonus ? 46 : 40;
+    const fill = isBonus ? "#ffb3d4" : "#fff8dc";
+    const stroke = "rgba(7, 24, 56, 0.92)";
 
     let floater = this.pool.pop();
     if (!floater) {
@@ -99,9 +94,8 @@ export class ScoreFloaters3D {
       this.group.remove(floater.sprite);
     }
     floater.sprite = makeTextSprite(label, { worldHeight, fill, stroke });
-    const side = dog.facing >= 0 ? 1 : -1;
-    floater.baseX = dog.x + side * dog.h * 0.4;
-    floater.baseY = sceneH - dog.y - dog.h * 0.95;
+    floater.baseX = event.x;
+    floater.baseY = sceneH - event.y;
     floater.baseScaleX = floater.sprite.scale.x;
     floater.baseScaleY = floater.sprite.scale.y;
     floater.life = floater.maxLife;
