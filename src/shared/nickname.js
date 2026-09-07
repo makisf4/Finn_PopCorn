@@ -1,5 +1,6 @@
-// Shared nickname normalization and validation. Unicode letters are allowed
-// (Greek, accented, etc); blocked fragments still match case-insensitively.
+// Shared nickname normalization and validation. Unicode letters and numbers
+// are allowed (Greek, accented, etc); blocked fragments still match
+// case-insensitively.
 const BLOCKED_FRAGMENTS = [
   "fuck",
   "shit",
@@ -29,8 +30,8 @@ export function isAllowedName(name) {
   if (!name || name.length === 0) return false;
   if (name.length > MAX_NICKNAME_LENGTH) return false;
   const hasLetter = /[\p{L}]/u.test(name);
-  const lettersAndSpaces = /^[\p{L}\s]+$/u.test(name);
-  if (!hasLetter || !lettersAndSpaces) return false;
+  const lettersNumbersAndSpaces = /^[\p{L}\p{N}\s]+$/u.test(name);
+  if (!hasLetter || !lettersNumbersAndSpaces) return false;
 
   // Block-list is mixed-case and collapsed in the same way both sides handle it.
   const compact = name.toLowerCase().replace(/\s+/g, "");

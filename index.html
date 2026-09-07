@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>Finn The Dyno PopCorn King</title>
-    <link rel="stylesheet" href="./styles.css?v=20260906-34" />
+    <link rel="stylesheet" href="./styles.css?v=20260907-35" />
   </head>
   <body>
     <div id="app">
@@ -71,7 +71,7 @@
                     aria-describedby="nickname-tip"
                     placeholder="Choose a nickname"
                   />
-                  <p id="nickname-tip" class="entry-tip">Letters and spaces only · max 10 characters.</p>
+                  <p id="nickname-tip" class="entry-tip">Letters, numbers and spaces · max 10 characters.</p>
                   <p id="name-error" class="name-error" aria-live="polite"></p>
                 </div>
 
@@ -109,8 +109,8 @@
               <p class="launch-note">Catch streaks multiply points. Three misses end the run.</p>
 
               <section class="leaderboard">
-                <h3>Top Players</h3>
-                <ol id="leaderboard-list-start"></ol>
+                <h3>Top 100 Players</h3>
+                <ol id="leaderboard-list-start" tabindex="0" aria-label="Top 100 players; scroll for more"></ol>
               </section>
             </aside>
 
@@ -195,6 +195,6 @@
         }
       }
     </script>
-    <script type="module" src="./src/main.js?v=20260906-34"></script>
+    <script type="module" src="./src/main.js?v=20260907-35"></script>
   </body>
 </html>

@@ -1,7 +1,7 @@
 import {
   COUNTDOWN_DURATION,
   getCountdownNumber,
-} from "../shared/gameplay.js?v=20260906-34";
+} from "../shared/gameplay.js?v=20260907-35";
 import { clamp } from "../utils.js";
 
 /**

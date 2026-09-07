@@ -8,7 +8,7 @@ const IP_POST_LIMIT = 50;
 const NAME_RECORD_LIMIT = 5;
 const TIMESTAMP_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const TIMESTAMP_MAX_SKEW_MS = 5 * 60 * 1000;
-const MAX_ENTRIES = 10;
+const MAX_ENTRIES = 100;
 const MAX_NAME_LENGTH = 10;
 const MAX_SCORE = 1_000_000;
 const MAX_RUN_SECONDS = 6 * 60 * 60;
@@ -26,7 +26,12 @@ const normalizeName = (rawName) => {
 const normalizeNameKey = (name) => normalizeName(name).toLocaleLowerCase("und");
 
 const isAllowedName = (name) => {
-  if (!name || name.length > MAX_NAME_LENGTH || !/^[\p{L}]+(?: [\p{L}]+)*$/u.test(name)) return false;
+  if (
+    !name
+    || name.length > MAX_NAME_LENGTH
+    || !/[\p{L}]/u.test(name)
+    || !/^[\p{L}\p{N}]+(?: [\p{L}\p{N}]+)*$/u.test(name)
+  ) return false;
   const compact = name.toLocaleLowerCase("und").replace(/\s+/gu, "");
   return !BLOCKED_NAME_FRAGMENTS.some((fragment) => compact.includes(fragment));
 };

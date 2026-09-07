@@ -2,9 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isAllowedName, normalizeName } from "../src/shared/nickname.js";
 
-test("Latin letters and spaces accepted", () => {
+test("Latin letters, numbers and spaces accepted", () => {
   assert.equal(isAllowedName("Finn"), true);
   assert.equal(isAllowedName("Finn Lex"), true);
+  assert.equal(isAllowedName("Finn1"), true);
 });
 
 test("Greek letters accepted", () => {
@@ -12,8 +13,8 @@ test("Greek letters accepted", () => {
   assert.equal(isAllowedName("Θοδωρής"), true);
 });
 
-test("digits rejected", () => {
-  assert.equal(isAllowedName("Finn1"), false);
+test("digit-only names rejected", () => {
+  assert.equal(isAllowedName("123"), false);
 });
 
 test("HTML tags rejected", () => {

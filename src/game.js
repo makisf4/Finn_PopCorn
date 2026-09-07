@@ -1,6 +1,6 @@
-import { AudioManager } from "./audio.js?v=20260906-34";
-import { InputManager } from "./input.js?v=20260906-34";
-import { Renderer } from "./renderer.js?v=20260906-34";
+import { AudioManager } from "./audio.js?v=20260907-35";
+import { InputManager } from "./input.js?v=20260907-35";
+import { Renderer } from "./renderer.js?v=20260907-35";
 import {
   bonusDropXRange,
   ACTIVE_POPCORN_CAP,
@@ -15,12 +15,12 @@ import {
   getCountdownNumber,
   getScorePressure,
   createPressuredBallisticArc,
-} from "./shared/gameplay.js?v=20260906-34";
+} from "./shared/gameplay.js?v=20260907-35";
 import {
   resolveLandingRange,
   resolveZoneFraction,
   selectWavePattern,
-} from "./shared/waves.js?v=20260906-34";
+} from "./shared/waves.js?v=20260907-35";
 import {
   clamp,
   circleRectCollision,
@@ -35,14 +35,14 @@ import {
   normalizeName,
   isAllowedName,
   normalizeNameKey,
-} from "./shared/nickname.js?v=20260906-34";
-import { characterForId } from "./shared/characters.js?v=20260906-34";
+} from "./shared/nickname.js?v=20260907-35";
+import { characterForId } from "./shared/characters.js?v=20260907-35";
 import {
   computeCatchRect,
   computeEffectPoint,
   extendCatchRectToGround,
-} from "./shared/catch-region.js?v=20260906-34";
-import { trapFocus } from "./shared/focus.js?v=20260906-34";
+} from "./shared/catch-region.js?v=20260907-35";
+import { trapFocus } from "./shared/focus.js?v=20260907-35";
 
 export class Game {
   constructor(elements) {
@@ -167,7 +167,7 @@ export class Game {
 
     this.leaderboardStorageKey = "finn_popcorn_leaderboard_v1";
     this.leaderboardApiUrl = "/api/leaderboard";
-    this.maxLeaderboardEntries = 10;
+    this.maxLeaderboardEntries = 100;
     this.maxNameLength = 10;
     this.lastPlayerStorageKey = "finn_popcorn_last_player_v1";
     this.pendingLeaderboardOpsStorageKey = "finn_popcorn_pending_leaderboard_ops_v1";
@@ -1566,7 +1566,7 @@ export class Game {
     }
 
     if (!this.#isAllowedPlayerName(normalizedName)) {
-      this.#setNameError("Use letters and spaces only, max 10 chars.");
+      this.#setNameError("Use letters, numbers and spaces only, max 10 chars.");
       return false;
     }
 
@@ -1848,7 +1848,7 @@ export class Game {
   }
 
   #renderLeaderboards() {
-    this.#renderLeaderboardList(this.leaderboardListStart, 3);
+    this.#renderLeaderboardList(this.leaderboardListStart);
     this.#renderLeaderboardList(this.leaderboardListOver);
   }
 

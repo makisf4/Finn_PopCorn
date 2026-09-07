@@ -1432,9 +1432,16 @@ body {
 }
 
 .landing-panel .leaderboard ol {
-  max-height: none;
-  overflow: visible;
+  max-height: clamp(120px, 24vh, 240px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   gap: 2px;
+}
+
+.landing-panel .leaderboard ol:focus-visible {
+  outline: 3px solid rgba(216, 154, 37, 0.62);
+  outline-offset: 3px;
 }
 
 .landing-panel .leaderboard li {

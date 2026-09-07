@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  MAX_ENTRIES,
   IP_POST_LIMIT,
   NAME_RECORD_LIMIT,
   RATE_LIMIT_WINDOW_MS,
@@ -21,6 +22,7 @@ describe("leaderboard limit constants", () => {
     assert.equal(RATE_LIMIT_WINDOW_MS, 10 * 60 * 1000);
     assert.equal(IP_POST_LIMIT, 50);
     assert.equal(NAME_RECORD_LIMIT, 5);
+    assert.equal(MAX_ENTRIES, 100);
     assert.equal(TIMESTAMP_MAX_AGE_MS, 7 * 24 * 60 * 60 * 1000);
     assert.equal(TIMESTAMP_MAX_SKEW_MS, 5 * 60 * 1000);
   });
@@ -154,10 +156,11 @@ describe("getClientIp", () => {
 describe("shared leaderboard policy", () => {
   const now = Date.parse("2026-09-03T12:00:00.000Z");
 
-  it("accepts Unicode letter-only names and rejects markup and digits", () => {
+  it("accepts Unicode letters and numbers while rejecting markup", () => {
     assert.equal(normalizeName("  Θοδωρής   Παπ  "), "Θοδωρής Πα");
     assert.equal(isAllowedName("Φίλης"), true);
-    assert.equal(isAllowedName("Finn1"), false);
+    assert.equal(isAllowedName("Finn1"), true);
+    assert.equal(isAllowedName("123"), false);
     assert.equal(isAllowedName("<script>"), false);
   });
 
@@ -170,6 +173,20 @@ describe("shared leaderboard policy", () => {
     assert.deepEqual(entries.map(({ score, difficulty }) => ({ score, difficulty })), [
       { score: 50, difficulty: "normal" },
     ]);
+  });
+
+  it("keeps the top 100 unique players", () => {
+    const entries = Array.from({ length: 105 }, (_, index) => ({
+      name: `P${String.fromCharCode(97 + Math.floor(index / 26))}${String.fromCharCode(97 + (index % 26))}`,
+      score: index + 1,
+      difficulty: "normal",
+      ts: now + index,
+    }));
+    const normalized = normalizeEntries(entries, now);
+
+    assert.equal(normalized.length, MAX_ENTRIES);
+    assert.equal(normalized[0].score, 105);
+    assert.equal(normalized.at(-1).score, 6);
   });
 
   it("accepts plausible run metadata", () => {
