@@ -87,7 +87,7 @@ WebGL/Three.js is the primary renderer (camera, perspective, lights, shadow map,
 
 ## Leaderboard
 
-Client uses single-mode entries (`name, score, ts, difficulty`) with Unicode-aware normalization, blocked fragments, run telemetry, and a persistent pending commit queue. Both server implementations share the same validation rules, reject public rename actions, keep one best score per player, retain the top 100 unique players, and reject clearly implausible telemetry. The landing and game-over boards scroll when the list exceeds their available height. Writes are not authenticated; rate limits are best-effort and per process or warm serverless instance, so they are abuse friction rather than a complete anti-cheat boundary. Infrastructure errors do not return raw details.
+Client uses single-mode entries (`name, score, ts, difficulty`) with Unicode-aware normalization, blocked fragments, run telemetry, and a persistent pending commit queue. Both server implementations share the same validation rules, reject public rename actions, keep one best score per player, retain the top 100 unique players, and reject clearly implausible telemetry. The landing board exposes six rows with a visible scrollbar, and the game-over board scrolls when the list exceeds its available height. Writes are not authenticated; rate limits are best-effort and per process or warm serverless instance, so they are abuse friction rather than a complete anti-cheat boundary. Infrastructure errors do not return raw details.
 
 ## File structure
 

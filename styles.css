@@ -1432,11 +1432,31 @@ body {
 }
 
 .landing-panel .leaderboard ol {
-  max-height: clamp(120px, 24vh, 240px);
-  overflow-y: auto;
+  height: 154px;
+  max-height: 154px;
+  overflow-y: scroll;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+  scrollbar-color: rgba(24, 52, 89, 0.58) rgba(24, 52, 89, 0.1);
+  scrollbar-width: thin;
   gap: 2px;
+}
+
+.landing-panel .leaderboard ol::-webkit-scrollbar {
+  width: 10px;
+}
+
+.landing-panel .leaderboard ol::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(24, 52, 89, 0.1);
+}
+
+.landing-panel .leaderboard ol::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(24, 52, 89, 0.58);
+  background-clip: padding-box;
 }
 
 .landing-panel .leaderboard ol:focus-visible {
@@ -1445,7 +1465,9 @@ body {
 }
 
 .landing-panel .leaderboard li {
+  height: 24px;
   font-size: 0.78rem;
+  line-height: 1.2;
 }
 
 .quick-guide {

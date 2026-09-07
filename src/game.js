@@ -1,6 +1,6 @@
-import { AudioManager } from "./audio.js?v=20260907-35";
-import { InputManager } from "./input.js?v=20260907-35";
-import { Renderer } from "./renderer.js?v=20260907-35";
+import { AudioManager } from "./audio.js?v=20260907-36";
+import { InputManager } from "./input.js?v=20260907-36";
+import { Renderer } from "./renderer.js?v=20260907-36";
 import {
   bonusDropXRange,
   ACTIVE_POPCORN_CAP,
@@ -15,12 +15,12 @@ import {
   getCountdownNumber,
   getScorePressure,
   createPressuredBallisticArc,
-} from "./shared/gameplay.js?v=20260907-35";
+} from "./shared/gameplay.js?v=20260907-36";
 import {
   resolveLandingRange,
   resolveZoneFraction,
   selectWavePattern,
-} from "./shared/waves.js?v=20260907-35";
+} from "./shared/waves.js?v=20260907-36";
 import {
   clamp,
   circleRectCollision,
@@ -35,14 +35,14 @@ import {
   normalizeName,
   isAllowedName,
   normalizeNameKey,
-} from "./shared/nickname.js?v=20260907-35";
-import { characterForId } from "./shared/characters.js?v=20260907-35";
+} from "./shared/nickname.js?v=20260907-36";
+import { characterForId } from "./shared/characters.js?v=20260907-36";
 import {
   computeCatchRect,
   computeEffectPoint,
   extendCatchRectToGround,
-} from "./shared/catch-region.js?v=20260907-35";
-import { trapFocus } from "./shared/focus.js?v=20260907-35";
+} from "./shared/catch-region.js?v=20260907-36";
+import { trapFocus } from "./shared/focus.js?v=20260907-36";
 
 export class Game {
   constructor(elements) {

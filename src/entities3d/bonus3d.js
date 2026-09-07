@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { shouldShowBonusBirdAlert } from "../shared/gameplay.js?v=20260907-35";
+import { shouldShowBonusBirdAlert } from "../shared/gameplay.js?v=20260907-36";
 
 function makeBonusAlertSprite() {
   const canvas = document.createElement("canvas");
