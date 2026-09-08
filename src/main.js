@@ -1,4 +1,4 @@
-import { Game } from "./game.js?v=20260907-36";
+import { Game } from "./game.js?v=20260908-37";
 
 const byId = (id) => document.getElementById(id);
 
@@ -74,6 +74,7 @@ const game = new Game({
   quitConfirmCancel: byId("quit-cancel-btn"),
   firstRunOverlay: byId("first-run-overlay"),
   firstRunText: byId("first-run-text"),
+  firstRunStartBtn: byId("first-run-start-btn"),
 });
 
 window.finnPopcornGame = game;

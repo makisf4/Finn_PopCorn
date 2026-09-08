@@ -1,6 +1,6 @@
-import { AudioManager } from "./audio.js?v=20260907-36";
-import { InputManager } from "./input.js?v=20260907-36";
-import { Renderer } from "./renderer.js?v=20260907-36";
+import { AudioManager } from "./audio.js?v=20260908-37";
+import { InputManager } from "./input.js?v=20260908-37";
+import { Renderer } from "./renderer.js?v=20260908-37";
 import {
   bonusDropXRange,
   ACTIVE_POPCORN_CAP,
@@ -15,12 +15,12 @@ import {
   getCountdownNumber,
   getScorePressure,
   createPressuredBallisticArc,
-} from "./shared/gameplay.js?v=20260907-36";
+} from "./shared/gameplay.js?v=20260908-37";
 import {
   resolveLandingRange,
   resolveZoneFraction,
   selectWavePattern,
-} from "./shared/waves.js?v=20260907-36";
+} from "./shared/waves.js?v=20260908-37";
 import {
   clamp,
   circleRectCollision,
@@ -35,14 +35,14 @@ import {
   normalizeName,
   isAllowedName,
   normalizeNameKey,
-} from "./shared/nickname.js?v=20260907-36";
-import { characterForId } from "./shared/characters.js?v=20260907-36";
+} from "./shared/nickname.js?v=20260908-37";
+import { characterForId } from "./shared/characters.js?v=20260908-37";
 import {
   computeCatchRect,
   computeEffectPoint,
   extendCatchRectToGround,
-} from "./shared/catch-region.js?v=20260907-36";
-import { trapFocus } from "./shared/focus.js?v=20260907-36";
+} from "./shared/catch-region.js?v=20260908-37";
+import { trapFocus } from "./shared/focus.js?v=20260908-37";
 
 export class Game {
   constructor(elements) {
@@ -81,6 +81,8 @@ export class Game {
     this.firstRunCompleted = false;
     this.firstRunOverlay = elements.firstRunOverlay;
     this.firstRunText = elements.firstRunText;
+    this.firstRunStartBtn = elements.firstRunStartBtn;
+    this.tutorialInputMode = window.matchMedia("(pointer: coarse)").matches ? "touch" : "keyboard";
     this.milestoneBanner = elements.milestoneBanner;
     this.runTimeEl = elements.runTimeEl;
     this.runCaughtEl = elements.runCaughtEl;
@@ -246,7 +248,7 @@ export class Game {
     this.#resize();
     this.#updateHud();
     this.#setGameplayUiHidden(true);
-    for (const overlay of [this.startScreen, this.gameOverScreen, this.pauseScreen, this.quitConfirmEl]) {
+    for (const overlay of [this.startScreen, this.gameOverScreen, this.pauseScreen, this.quitConfirmEl, this.firstRunOverlay]) {
       this.#setOverlayVisible(overlay, overlay?.classList.contains("visible"));
     }
     this.#hydrateLastPlayerName();
@@ -349,6 +351,16 @@ export class Game {
     window.addEventListener("orientationchange", () => this.#resize());
     document.addEventListener("visibilitychange", () => this.audio.handleVisibilityChange());
 
+    this.firstRunStartBtn?.addEventListener("click", () => this.#completeTutorial());
+    window.addEventListener("pointerdown", (event) => {
+      this.tutorialInputMode = event.pointerType === "touch" ? "touch" : "keyboard";
+      this.#updateTutorialText();
+    }, { passive: true });
+    window.addEventListener("keydown", () => {
+      this.tutorialInputMode = "keyboard";
+      this.#updateTutorialText();
+    });
+
     if (this.firstRunOverlay) {
       this.firstRunCompleted = this.#readTutorialCompleted();
     }
@@ -362,23 +374,47 @@ export class Game {
     }
   }
 
+  #updateTutorialText() {
+    if (!this.firstRunText) return;
+    this.firstRunText.textContent = this.tutorialInputMode === "touch"
+      ? "Hold the left or right arrow button below the game to move."
+      : "Hold the left or right Arrow key, or A / D, to move.";
+  }
+
   #showFirstRunIfFirst() {
-    if (this.firstRunCompleted || !this.firstRunOverlay) return;
-    this.firstRunOverlay.classList.add("visible");
-    if (this.firstRunText) this.firstRunText.textContent = "Hold ← / →, A / D, or a touch button to move.";
+    if (this.firstRunCompleted || !this.firstRunOverlay || !this.firstRunStartBtn) return;
+    this.state = "tutorial";
+    this.#setGameplayUiHidden(true);
+    if (this.homeBtn) this.homeBtn.hidden = true;
+    this.#updateTutorialText();
+    this.#setOverlayVisible(this.firstRunOverlay, true);
+    this.focusTrapHandle = trapFocus(this.firstRunOverlay);
+    this.#announce("Read the instructions, then select Got it — start.");
   }
 
   #completeTutorial() {
-    if (!this.firstRunCompleted) {
-      this.firstRunCompleted = true;
-      try {
-        localStorage.setItem("finn_tutorial_done_v1", "1");
-      } catch {
-        // Ignore.
-      }
-      if (this.firstRunOverlay) this.firstRunOverlay.classList.remove("visible");
-      this.#announce("Tutorial completed. Catch the popcorn!");
+    if (this.state !== "tutorial") return;
+    this.firstRunCompleted = true;
+    try {
+      localStorage.setItem("finn_tutorial_done_v1", "1");
+    } catch {
+      // The tutorial still works when storage is unavailable.
     }
+    this.#setOverlayVisible(this.firstRunOverlay, false);
+    if (this.focusTrapHandle) {
+      this.focusTrapHandle.release();
+      this.focusTrapHandle = null;
+    }
+    this.input.clearHeldInput();
+    this.state = "countdown";
+    this.countdownElapsed = 0;
+    this.lastCountdownNumber = "3";
+    this.#setGameplayUiHidden(false);
+    this.#resize();
+    if (this.homeBtn) this.homeBtn.hidden = false;
+    this.pauseBtn?.focus();
+    this.audio.resumeMusic();
+    this.#announce("Game starting. Get ready.");
   }
 
   async #unlockAudio() {
@@ -397,7 +433,9 @@ export class Game {
 
     this.state = "countdown";
     this.countdownElapsed = 0;
+    this.lastCountdownNumber = "3";
     this.input.clearHeldInput();
+    this.#setOverlayVisible(this.firstRunOverlay, false);
     this.#setOverlayVisible(this.startScreen, false);
     this.#setOverlayVisible(this.gameOverScreen, false);
     this.#setGameplayUiHidden(false);
@@ -439,15 +477,19 @@ export class Game {
     this.lastMilestoneScore = 0;
     this.lastDifficultyTier = 0;
     this.#hideMilestoneBanner();
-    this.audio.resumeMusic();
 
     this.#resetDogPosition();
     this.#updateHud(true);
     this.#showFirstRunIfFirst();
-    this.#announce("Game starting. Get ready.");
+    this.#resize();
+    if (this.state === "countdown") {
+      this.audio.resumeMusic();
+      this.#announce("Game starting. Get ready.");
+    }
   }
 
   #endGame() {
+    if (this.state !== "playing") return;
     this.state = "gameover";
     this.countdownElapsed = 0;
     this.input.clearHeldInput();
@@ -459,7 +501,7 @@ export class Game {
     this.bonusDrops.length = 0;
     this.milestoneBannerTimer = 0;
     this.#hideMilestoneBanner();
-    if (this.firstRunOverlay) this.firstRunOverlay.classList.remove("visible");
+    this.#setOverlayVisible(this.firstRunOverlay, false);
     this.#hidePauseOverlay();
     this.shake = Math.max(this.shake, 3.5);
 
@@ -541,7 +583,7 @@ export class Game {
     if (this.homeBtn) this.homeBtn.hidden = true;
     this.#clearNameError();
     this.#hideMilestoneBanner();
-    if (this.firstRunOverlay) this.firstRunOverlay.classList.remove("visible");
+    this.#setOverlayVisible(this.firstRunOverlay, false);
     this.milestoneBannerTimer = 0;
     this.gameOverElapsed = 0;
     this.gameOverFxTimer = 0;
@@ -713,14 +755,18 @@ export class Game {
       this.time += dt;
     }
 
-    this.#update(dt);
-    this.#render();
-
-    requestAnimationFrame((t) => this.#loop(t));
+    // This is the only frame scheduler. Restarts reset state, never start a loop.
+    // Preserve the scheduler even if an update or renderer throws.
+    try {
+      this.#update(dt);
+      this.#render();
+    } finally {
+      requestAnimationFrame((t) => this.#loop(t));
+    }
   }
 
   #update(dt) {
-    if (this.state === "paused") {
+    if (this.state === "paused" || this.state === "tutorial") {
       return;
     }
 
@@ -760,8 +806,11 @@ export class Game {
 
       this.#spawnBonusBirdIfReady();
       this.#updatePopcorns(dt);
+      if (this.state !== "playing") return;
       this.#updateBonusBirds(dt);
+      if (this.state !== "playing") return;
       this.#updateBonusDrops(dt);
+      if (this.state !== "playing") return;
     } else if (this.state === "gameover") {
       this.gameOverElapsed += dt;
     }
@@ -793,9 +842,6 @@ export class Game {
     const axis = this.input.getAxis();
     const move = axis * this.dog.speed * dt;
     const previousX = this.dog.x;
-    if (!this.firstRunCompleted && axis !== 0) {
-      this.#completeTutorial();
-    }
 
     this.dog.x = clamp(this.dog.x + move, this.#dogMinX(), this.#dogMaxX());
     const travelled = Math.abs(this.dog.x - previousX);
@@ -894,6 +940,8 @@ export class Game {
           });
         } else {
           this.#handleMiss(popcorn);
+          // A terminal miss clears the entity arrays; abandon stale indices.
+          if (this.state !== "playing") return;
           this.popcorns.splice(i, 1);
           continue;
         }

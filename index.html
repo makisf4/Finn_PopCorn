@@ -7,7 +7,7 @@
       content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
     <title>Finn The Dyno PopCorn King</title>
-    <link rel="stylesheet" href="./styles.css?v=20260907-36" />
+    <link rel="stylesheet" href="./styles.css?v=20260908-37" />
   </head>
   <body>
     <div id="app">
@@ -175,8 +175,13 @@
             <button id="quit-ok-btn" class="primary-btn" type="button">Quit to Home</button>
           </div>
         </section>
-        <section id="first-run-overlay" class="overlay first-run" role="status" aria-live="polite" aria-label="How to move">
-          <p id="first-run-text">Hold ← / →, A / D, or a touch button to move.</p>
+        <section id="first-run-overlay" class="overlay first-run" role="dialog" aria-modal="true" aria-labelledby="first-run-title" aria-describedby="first-run-text first-run-rules" aria-hidden="true" inert>
+          <div class="first-run-card">
+            <h2 id="first-run-title">How to play</h2>
+            <p id="first-run-text">Hold the left or right Arrow key, or A / D, to move.</p>
+            <p id="first-run-rules">Catch popcorn before its second landing. Three misses end your run.</p>
+            <button id="first-run-start-btn" class="primary-btn" type="button">Got it — start</button>
+          </div>
         </section>
         <div id="game-announcer" class="sr-only" role="status" aria-live="polite" aria-atomic="true"></div>
       </main>
@@ -195,6 +200,6 @@
         }
       }
     </script>
-    <script type="module" src="./src/main.js?v=20260907-36"></script>
+    <script type="module" src="./src/main.js?v=20260908-37"></script>
   </body>
 </html>

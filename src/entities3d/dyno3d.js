@@ -1,4 +1,4 @@
-import { CharacterSprite3D } from "./character-sprite3d.js?v=20260907-36";
+import { CharacterSprite3D } from "./character-sprite3d.js?v=20260908-37";
 
 export class Dyno3D extends CharacterSprite3D {
   constructor() {
